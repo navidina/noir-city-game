@@ -37,7 +37,7 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    const speed = 15;
+    const speed = 10;
 
     if (isMoving && !isShooting) {
       // Walk Cycle
@@ -46,15 +46,15 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
       
       // Bobbing
       if (bodyRef.current) {
-        bodyRef.current.position.y = MathUtils.lerp(bodyRef.current.position.y, 0.95 + Math.abs(Math.sin(t * speed * 2)) * 0.08, 0.2);
+        bodyRef.current.position.y = MathUtils.lerp(bodyRef.current.position.y, 0.95 + Math.abs(Math.sin(t * speed * 2)) * 0.05, 0.2);
         
         // Torso twist opposite to legs forward
-        bodyRef.current.rotation.y = MathUtils.lerp(bodyRef.current.rotation.y, walkCycle * 0.15, 0.2);
-        bodyRef.current.rotation.z = MathUtils.lerp(bodyRef.current.rotation.z, Math.sin(t * speed * 2) * 0.03, 0.2);
+        bodyRef.current.rotation.y = MathUtils.lerp(bodyRef.current.rotation.y, walkCycle * 0.1, 0.2);
+        bodyRef.current.rotation.z = MathUtils.lerp(bodyRef.current.rotation.z, Math.sin(t * speed * 2) * 0.02, 0.2);
       }
 
       // Arms swing
-      if (leftArmRef.current) leftArmRef.current.rotation.x = MathUtils.lerp(leftArmRef.current.rotation.x, -walkCycle * 0.7, 0.2);
+      if (leftArmRef.current) leftArmRef.current.rotation.x = MathUtils.lerp(leftArmRef.current.rotation.x, -walkCycle * 0.5, 0.2);
       
       if (hasGun) {
         // Carry gun in a ready stance while running
@@ -62,22 +62,25 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
           rightArmRef.current.rotation.x = MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 4, 0.2);
           rightArmRef.current.rotation.z = MathUtils.lerp(rightArmRef.current.rotation.z, -0.1, 0.2);
         }
-        if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, 0.5, 0.2);
+        if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, -0.5, 0.2);
       } else {
-        if (rightArmRef.current) rightArmRef.current.rotation.x = MathUtils.lerp(rightArmRef.current.rotation.x, walkCycle * 0.7, 0.2);
-        if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, Math.max(0, walkCycle * 0.6), 0.2);
+        if (rightArmRef.current) rightArmRef.current.rotation.x = MathUtils.lerp(rightArmRef.current.rotation.x, walkCycle * 0.5, 0.2);
+        // Elbow bends forward (negative x) when arm moves forward (negative x).
+        if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, walkCycle < 0 ? walkCycle * 0.5 : 0, 0.2);
       }
       
-      // Elbows bend slightly when arm moves forward
-      if (leftElbowRef.current) leftElbowRef.current.rotation.x = MathUtils.lerp(leftElbowRef.current.rotation.x, Math.max(0, -walkCycle * 0.6), 0.2);
+      // Left arm moves opposite to right arm
+      // Elbow bends forward (negative x) when arm moves forward (negative x)
+      if (leftElbowRef.current) leftElbowRef.current.rotation.x = MathUtils.lerp(leftElbowRef.current.rotation.x, -walkCycle < 0 ? -walkCycle * 0.5 : 0, 0.2);
 
       // Legs swing
-      if (leftLegRef.current) leftLegRef.current.rotation.x = MathUtils.lerp(leftLegRef.current.rotation.x, walkCycleLegs * 0.8, 0.3);
-      if (rightLegRef.current) rightLegRef.current.rotation.x = MathUtils.lerp(rightLegRef.current.rotation.x, -walkCycleLegs * 0.8, 0.3);
+      if (leftLegRef.current) leftLegRef.current.rotation.x = MathUtils.lerp(leftLegRef.current.rotation.x, walkCycleLegs * 0.55, 0.3);
+      if (rightLegRef.current) rightLegRef.current.rotation.x = MathUtils.lerp(rightLegRef.current.rotation.x, -walkCycleLegs * 0.55, 0.3);
       
-      // Knees bend when leg moves back or comes forward
-      const leftKneeTarget = walkCycleLegs > 0 ? 0 : -walkCycleLegs * 1.2;
-      const rightKneeTarget = -walkCycleLegs > 0 ? 0 : walkCycleLegs * 1.2;
+      // Knees bend backward (positive x) when leg moves back (positive x), 
+      // but also bend slightly when moving forward to clear the ground.
+      const leftKneeTarget = walkCycleLegs > 0 ? walkCycleLegs * 0.8 : -walkCycleLegs * 0.1;
+      const rightKneeTarget = -walkCycleLegs > 0 ? -walkCycleLegs * 0.8 : walkCycleLegs * 0.1;
       
       if (leftKneeRef.current) leftKneeRef.current.rotation.x = MathUtils.lerp(leftKneeRef.current.rotation.x, leftKneeTarget, 0.3);
       if (rightKneeRef.current) rightKneeRef.current.rotation.x = MathUtils.lerp(rightKneeRef.current.rotation.x, rightKneeTarget, 0.3);
@@ -97,7 +100,7 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
 
       if (!isShooting) {
         if (leftArmRef.current) leftArmRef.current.rotation.x = MathUtils.lerp(leftArmRef.current.rotation.x, 0, 0.1);
-        if (leftElbowRef.current) leftElbowRef.current.rotation.x = MathUtils.lerp(leftElbowRef.current.rotation.x, 0.1, 0.1);
+        if (leftElbowRef.current) leftElbowRef.current.rotation.x = MathUtils.lerp(leftElbowRef.current.rotation.x, -0.1, 0.1);
         
         if (hasGun) {
           // Idle point gun forward-low
@@ -105,10 +108,10 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
             rightArmRef.current.rotation.x = MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 4, 0.1);
             rightArmRef.current.rotation.z = MathUtils.lerp(rightArmRef.current.rotation.z, -0.05, 0.1);
           }
-          if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, 0.4, 0.1);
+          if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, -0.4, 0.1);
         } else {
           if (rightArmRef.current) rightArmRef.current.rotation.x = MathUtils.lerp(rightArmRef.current.rotation.x, 0, 0.1);
-          if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, 0.1, 0.1);
+          if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, -0.1, 0.1);
         }
       }
     }
@@ -126,7 +129,7 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
           rightArmRef.current.rotation.x = MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 2, 0.4);
           rightArmRef.current.rotation.z = MathUtils.lerp(rightArmRef.current.rotation.z, -0.1, 0.4);
         }
-        if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, 0.05, 0.4);
+        if (rightElbowRef.current) rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, -0.05, 0.4);
       } else {
         // Punch-like behavior
         if (rightArmRef.current) {
@@ -142,7 +145,7 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
         leftArmRef.current.rotation.z = MathUtils.lerp(leftArmRef.current.rotation.z, 0.3, 0.2);
       }
       if (leftElbowRef.current) {
-        leftElbowRef.current.rotation.x = MathUtils.lerp(leftElbowRef.current.rotation.x, 1.5, 0.2);
+        leftElbowRef.current.rotation.x = MathUtils.lerp(leftElbowRef.current.rotation.x, -1.5, 0.2);
       }
     } else {
       // Clean up rotation z
@@ -228,11 +231,17 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
 
         {/* Left Arm */}
         <group ref={leftArmRef} position={[-0.26, 0.4, 0]}>
+          <mesh position={[0, 0, 0]} material={suitMaterial}>
+            <sphereGeometry args={[0.07, 16, 16]} />
+          </mesh>
           <mesh castShadow receiveShadow position={[0, -0.15, 0]} material={suitMaterial}>
             <boxGeometry args={[0.12, 0.35, 0.12]} />
           </mesh>
           
           <group ref={leftElbowRef} position={[0, -0.32, 0]}>
+            <mesh position={[0, 0, 0]} material={suitMaterial}>
+              <sphereGeometry args={[0.06, 16, 16]} />
+            </mesh>
             <mesh castShadow receiveShadow position={[0, -0.15, 0]} material={suitMaterial}>
               <boxGeometry args={[0.1, 0.32, 0.1]} />
             </mesh>
@@ -250,11 +259,17 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
 
         {/* Right Arm */}
         <group ref={rightArmRef} position={[0.26, 0.4, 0]}>
+           <mesh position={[0, 0, 0]} material={suitMaterial}>
+            <sphereGeometry args={[0.07, 16, 16]} />
+          </mesh>
            <mesh castShadow receiveShadow position={[0, -0.15, 0]} material={suitMaterial}>
             <boxGeometry args={[0.12, 0.35, 0.12]} />
           </mesh>
           
           <group ref={rightElbowRef} position={[0, -0.32, 0]}>
+            <mesh position={[0, 0, 0]} material={suitMaterial}>
+              <sphereGeometry args={[0.06, 16, 16]} />
+            </mesh>
             <mesh castShadow receiveShadow position={[0, -0.15, 0]} material={suitMaterial}>
               <boxGeometry args={[0.1, 0.32, 0.1]} />
             </mesh>
@@ -293,10 +308,16 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
           
           {/* Left Leg */}
           <group ref={leftLegRef} position={[-0.12, 0, 0]}>
+            <mesh position={[0, 0, 0]} material={suitMaterial}>
+              <sphereGeometry args={[0.08, 16, 16]} />
+            </mesh>
             <mesh castShadow receiveShadow position={[0, -0.2, 0]} material={suitMaterial}>
               <boxGeometry args={[0.15, 0.45, 0.15]} />
             </mesh>
             <group ref={leftKneeRef} position={[0, -0.42, 0]}>
+              <mesh position={[0, 0, 0]} material={suitMaterial}>
+                <sphereGeometry args={[0.075, 16, 16]} />
+              </mesh>
               <mesh castShadow receiveShadow position={[0, -0.22, 0]} material={suitMaterial}>
                 <boxGeometry args={[0.13, 0.45, 0.13]} />
               </mesh>
@@ -308,10 +329,16 @@ export function Humanoid({ position = [0, 0, 0], color, isMoving, isShooting, sc
 
           {/* Right Leg */}
           <group ref={rightLegRef} position={[0.12, 0, 0]}>
+            <mesh position={[0, 0, 0]} material={suitMaterial}>
+              <sphereGeometry args={[0.08, 16, 16]} />
+            </mesh>
             <mesh castShadow receiveShadow position={[0, -0.2, 0]} material={suitMaterial}>
               <boxGeometry args={[0.15, 0.45, 0.15]} />
             </mesh>
             <group ref={rightKneeRef} position={[0, -0.42, 0]}>
+              <mesh position={[0, 0, 0]} material={suitMaterial}>
+                <sphereGeometry args={[0.075, 16, 16]} />
+              </mesh>
               <mesh castShadow receiveShadow position={[0, -0.22, 0]} material={suitMaterial}>
                 <boxGeometry args={[0.13, 0.45, 0.13]} />
               </mesh>

@@ -278,12 +278,33 @@ export function GameScene() {
       // Update rotation smoothly
       if (playerRef.current) {
         playerRef.current.position.copy(playerPos.current);
-        const targetRot = Math.atan2(moveDir.x, moveDir.z);
-        playerRef.current.rotation.y = targetRot;
+        const { shootVector } = useGameStore.getState();
+        // If we have a shoot vector with significant length, point in that direction
+        if (shootVector.x !== 0 || shootVector.y !== 0) {
+           const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+           right.y = 0; right.normalize();
+           const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+           forward.y = 0; forward.normalize();
+           const shootDir = forward.multiplyScalar(-shootVector.y).add(right.multiplyScalar(shootVector.x)).normalize();
+           playerRef.current.rotation.y = Math.atan2(shootDir.x, shootDir.z);
+        } else {
+           const targetRot = Math.atan2(moveDir.x, moveDir.z);
+           playerRef.current.rotation.y = targetRot;
+        }
       }
     } else {
       if (playerRef.current) {
         playerRef.current.position.copy(playerPos.current);
+        // Even when not moving, we might be aiming!
+        const { shootVector } = useGameStore.getState();
+        if (shootVector.x !== 0 || shootVector.y !== 0) {
+           const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+           right.y = 0; right.normalize();
+           const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+           forward.y = 0; forward.normalize();
+           const shootDir = forward.multiplyScalar(-shootVector.y).add(right.multiplyScalar(shootVector.x)).normalize();
+           playerRef.current.rotation.y = Math.atan2(shootDir.x, shootDir.z);
+        }
       }
     }
     

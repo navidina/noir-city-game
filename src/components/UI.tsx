@@ -2,27 +2,46 @@ import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store';
 
 export function UI() {
-  const { score, totalNPCs, status, setShooting, joystickVector, setJoystickVector } = useGameStore();
+  const { score, totalNPCs, status, setShooting, joystickVector, setJoystickVector, shootVector, setShootVector } = useGameStore();
 
   const joystickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
+  const shootJoystickRef = useRef<HTMLDivElement>(null);
+  const shootKnobRef = useRef<HTMLDivElement>(null);
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   
-  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent, type: 'move' | 'shoot') => {
     e.preventDefault();
-    handleMove(e);
+    if (type === 'move') handleMove(e, 'move');
+    if (type === 'shoot') handleMove(e, 'shoot');
   };
   
-  const handleMove = (e: React.TouchEvent | React.MouseEvent | TouchEvent | MouseEvent) => {
-    if (!joystickRef.current) return;
-    const rect = joystickRef.current.getBoundingClientRect();
+  const handleMove = (e: React.TouchEvent | React.MouseEvent | TouchEvent | MouseEvent, type: 'move' | 'shoot' = 'move') => {
+    const parentRef = type === 'move' ? joystickRef : shootJoystickRef;
+    const childRef = type === 'move' ? knobRef : shootKnobRef;
+    
+    if (!parentRef.current) return;
+    const rect = parentRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     
     let clientX, clientY;
     if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
+      // Find the touch that is closest to this joystick, or just loop through touches
+      // A better way is to see which touch target is within the joystick area, but
+      // for dual stick, tracking identifiers is best. Simplest approach for now is basic touch tracking.
+      let bestTouch = e.touches[0];
+      let minDistance = Infinity;
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches[i];
+        const dist = Math.pow(t.clientX - centerX, 2) + Math.pow(t.clientY - centerY, 2);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestTouch = t;
+        }
+      }
+      clientX = bestTouch.clientX;
+      clientY = bestTouch.clientY;
     } else {
       clientX = (e as MouseEvent).clientX;
       clientY = (e as MouseEvent).clientY;
@@ -40,24 +59,83 @@ export function UI() {
       ny = (dy / distance) * maxDistance;
     }
 
-    if (knobRef.current) {
-      knobRef.current.style.transform = `translate(${nx}px, ${ny}px)`;
+    if (childRef.current) {
+      childRef.current.style.transform = `translate(${nx}px, ${ny}px)`;
     }
 
-    setJoystickVector({ x: nx / maxDistance, y: ny / maxDistance });
+    if (type === 'move') {
+      setJoystickVector({ x: nx / maxDistance, y: ny / maxDistance });
+    } else {
+      setShootVector({ x: nx / maxDistance, y: ny / maxDistance });
+      setShooting(true); // Automatically set shooting when aiming
+    }
   };
 
-  const handleEnd = () => {
-    if (knobRef.current) {
-      knobRef.current.style.transform = `translate(0px, 0px)`;
+  const handleEnd = (e?: TouchEvent | MouseEvent | React.TouchEvent | React.MouseEvent, type?: 'move' | 'shoot') => {
+    // If it's a specific end event from a component
+    if (type) {
+      if (type === 'move') {
+        if (knobRef.current) knobRef.current.style.transform = `translate(0px, 0px)`;
+        setJoystickVector({ x: 0, y: 0 });
+      } else {
+        if (shootKnobRef.current) shootKnobRef.current.style.transform = `translate(0px, 0px)`;
+        setShootVector({ x: 0, y: 0 });
+        setShooting(false);
+      }
+      return;
     }
-    setJoystickVector({ x: 0, y: 0 });
+
+    // Global end handler
+    if (e && 'touches' in e) {
+      const touches = (e as TouchEvent).touches;
+      if (touches.length === 0) {
+        if (knobRef.current) knobRef.current.style.transform = `translate(0px, 0px)`;
+        setJoystickVector({ x: 0, y: 0 });
+        if (shootKnobRef.current) shootKnobRef.current.style.transform = `translate(0px, 0px)`;
+        setShootVector({ x: 0, y: 0 });
+        setShooting(false);
+      } else if (touches.length === 1) {
+        // Find which joystick the remaining touch is closest to
+        const touch = touches[0];
+        
+        let distMove = Infinity;
+        if (joystickRef.current) {
+           const rect = joystickRef.current.getBoundingClientRect();
+           distMove = Math.pow(touch.clientX - (rect.left + rect.width/2), 2) + Math.pow(touch.clientY - (rect.top + rect.height/2), 2);
+        }
+        
+        let distShoot = Infinity;
+        if (shootJoystickRef.current) {
+           const rect = shootJoystickRef.current.getBoundingClientRect();
+           distShoot = Math.pow(touch.clientX - (rect.left + rect.width/2), 2) + Math.pow(touch.clientY - (rect.top + rect.height/2), 2);
+        }
+
+        if (distMove < distShoot) {
+           // Keep move, reset shoot
+           if (shootKnobRef.current) shootKnobRef.current.style.transform = `translate(0px, 0px)`;
+           setShootVector({ x: 0, y: 0 });
+           setShooting(false);
+        } else {
+           // Keep shoot, reset move
+           if (knobRef.current) knobRef.current.style.transform = `translate(0px, 0px)`;
+           setJoystickVector({ x: 0, y: 0 });
+        }
+      }
+    } else {
+      // Mouse/global fallback
+      if (knobRef.current) knobRef.current.style.transform = `translate(0px, 0px)`;
+      setJoystickVector({ x: 0, y: 0 });
+      if (shootKnobRef.current) shootKnobRef.current.style.transform = `translate(0px, 0px)`;
+      setShootVector({ x: 0, y: 0 });
+      setShooting(false);
+    }
   };
 
   useEffect(() => {
-    const onTouchMove = (e: TouchEvent) => handleMove(e);
-    const onTouchEnd = () => handleEnd();
-    const onMouseUp = () => handleEnd();
+    // Note: global touchmove is omitted to avoid conflict with dual touches in simple setup,
+    // we handle touchMove directly on the joystick containers.
+    const onTouchEnd = (e: TouchEvent) => handleEnd(e);
+    const onMouseUp = (e: MouseEvent) => handleEnd(e);
     
     window.addEventListener('touchend', onTouchEnd);
     window.addEventListener('mouseup', onMouseUp);
@@ -70,7 +148,7 @@ export function UI() {
 
   // Keyboard controls
   useEffect(() => {
-    const keys = { w: false, a: false, s: false, d: false };
+    const keys = { w: false, a: false, s: false, d: false, up: false, down: false, left: false, right: false };
     const updateJoy = () => {
       let x = 0; let y = 0;
       if (keys.w) y -= 1;
@@ -84,23 +162,57 @@ export function UI() {
       } else {
         setJoystickVector({ x: 0, y: 0 });
       }
+
+      // Shoot joystick via arrow keys
+      let sx = 0; let sy = 0;
+      if (keys.up) sy -= 1;
+      if (keys.down) sy += 1;
+      if (keys.left) sx -= 1;
+      if (keys.right) sx += 1;
+      
+      const sDist = Math.sqrt(sx*sx + sy*sy);
+      if (sDist > 0) {
+        setShootVector({ x: sx/sDist, y: sy/sDist });
+        setShooting(true);
+      } else {
+        setShootVector({ x: 0, y: 0 });
+        // Spacebar is the only alternative for shooting now
+        if (!keys.space) setShooting(false);
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'w' || e.key === 'ArrowUp') keys.w = true;
-      if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
-      if (e.key === 's' || e.key === 'ArrowDown') keys.s = true;
-      if (e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
-      if (e.key === ' ') setShooting(true);
+      if (e.key === 'w') keys.w = true;
+      if (e.key === 'a') keys.a = true;
+      if (e.key === 's') keys.s = true;
+      if (e.key === 'd') keys.d = true;
+      if (e.key === 'ArrowUp') keys.up = true;
+      if (e.key === 'ArrowLeft') keys.left = true;
+      if (e.key === 'ArrowDown') keys.down = true;
+      if (e.key === 'ArrowRight') keys.right = true;
+      if (e.key === ' ') {
+        // Spacebar just overrides isShooting if we aren't using arrow keys
+        (keys as any).space = true;
+        setShooting(true);
+      }
       updateJoy();
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'w' || e.key === 'ArrowUp') keys.w = false;
-      if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
-      if (e.key === 's' || e.key === 'ArrowDown') keys.s = false;
-      if (e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
-      if (e.key === ' ') setShooting(false);
+      if (e.key === 'w') keys.w = false;
+      if (e.key === 'a') keys.a = false;
+      if (e.key === 's') keys.s = false;
+      if (e.key === 'd') keys.d = false;
+      if (e.key === 'ArrowUp') keys.up = false;
+      if (e.key === 'ArrowLeft') keys.left = false;
+      if (e.key === 'ArrowDown') keys.down = false;
+      if (e.key === 'ArrowRight') keys.right = false;
+      if (e.key === ' ') {
+        (keys as any).space = false;
+        if (!keys.up && !keys.down && !keys.left && !keys.right) {
+          setShooting(false);
+        }
+      }
       updateJoy();
     };
 
@@ -210,13 +322,15 @@ export function UI() {
       {/* 4. BOTTOM CONTROLS ROW */}
       <div className="flex justify-between items-end mb-3 pointer-events-auto relative z-40">
         
-        {/* Semi-transparent Glassmorphic Joystick Base */}
+        {/* Semi-transparent Glassmorphic Movement Joystick Base */}
         <div 
           ref={joystickRef}
-          onTouchStart={handleTouchStart}
-          onMouseDown={handleTouchStart}
-          onMouseMove={(e) => { if (e.buttons === 1) handleMove(e) }}
-          onTouchMove={(e) => handleMove(e)}
+          onTouchStart={(e) => handleTouchStart(e, 'move')}
+          onMouseDown={(e) => handleTouchStart(e, 'move')}
+          onMouseMove={(e) => { if (e.buttons === 1) handleMove(e, 'move') }}
+          onTouchMove={(e) => handleMove(e, 'move')}
+          onMouseUp={(e) => handleEnd(e, 'move')}
+          onTouchEnd={(e) => handleEnd(e, 'move')}
           className="w-24 h-24 rounded-full border border-white/15 bg-white/5 backdrop-blur-md flex items-center justify-center relative touch-none select-none"
         >
           {/* Inner ring helper */}
@@ -230,22 +344,29 @@ export function UI() {
           />
         </div>
 
-        {/* Custom Double-layered Action shoot weapon button (Perfect Poster Match!) */}
-        <button 
-          onPointerDown={() => setShooting(true)}
-          onPointerUp={() => setShooting(false)}
-          onPointerLeave={() => setShooting(false)}
-          className="w-22 h-22 rounded-full border border-white/20 flex items-center justify-center active:scale-95 transition-all select-none bg-black/25 p-0 focus:outline-none appearance-none cursor-pointer"
+        {/* Aiming / Shooting Joystick Base */}
+        <div 
+          ref={shootJoystickRef}
+          onTouchStart={(e) => handleTouchStart(e, 'shoot')}
+          onMouseDown={(e) => handleTouchStart(e, 'shoot')}
+          onMouseMove={(e) => { if (e.buttons === 1) handleMove(e, 'shoot') }}
+          onTouchMove={(e) => handleMove(e, 'shoot')}
+          onMouseUp={(e) => handleEnd(e, 'shoot')}
+          onTouchEnd={(e) => handleEnd(e, 'shoot')}
+          className="w-24 h-24 rounded-full border border-white/15 bg-black/25 backdrop-blur-md flex items-center justify-center relative touch-none select-none"
         >
-          {/* Outer circle spacing */}
-          <div className="w-18 h-18 rounded-full border-2 border-white/45 flex items-center justify-center p-1">
-            {/* Solid white central core */}
-            <div className="w-full h-full rounded-full bg-white flex items-center justify-center hover:bg-white/95 active:bg-zinc-200 transition-colors">
-              {/* Distinctive black center solid diamond */}
-              <div className="w-4 h-4 bg-black rotate-45" />
-            </div>
+          {/* Inner ring helper */}
+          <div className="absolute inset-2 rounded-full border-2 border-white/30 pointer-events-none" />
+          
+          {/* Shoot Knob */}
+          <div 
+            ref={shootKnobRef}
+            className="w-10 h-10 rounded-full bg-white flex items-center justify-center absolute shadow-lg transition-transform duration-75 active:scale-95"
+            style={{ transform: 'translate(0px, 0px)' }}
+          >
+             <div className="w-3 h-3 bg-black rotate-45 pointer-events-none" />
           </div>
-        </button>
+        </div>
 
       </div>
     </div>

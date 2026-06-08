@@ -11,6 +11,8 @@ export interface GameState {
   setStatus: (status: GameStatus) => void;
   joystickVector: { x: number; y: number };
   setJoystickVector: (v: { x: number; y: number }) => void;
+  shootVector: { x: number; y: number };
+  setShootVector: (v: { x: number; y: number }) => void;
   isShooting: boolean;
   setShooting: (s: boolean) => void;
 }
@@ -23,6 +25,8 @@ export const useGameStore = create<GameState>((set) => ({
   setStatus: (status) => set({ status }),
   joystickVector: { x: 0, y: 0 },
   setJoystickVector: (v) => set({ joystickVector: v }),
+  shootVector: { x: 0, y: 0 },
+  setShootVector: (v) => set({ shootVector: v }),
   isShooting: false,
   setShooting: (s) => set({ isShooting: s }),
 }));
