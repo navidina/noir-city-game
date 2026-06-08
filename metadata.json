@@ -1,0 +1,6 @@
+{
+  "name": "Noir City: The Suit",
+  "description": "A 3D isometric mobile-first noir game where you fight NPCs to turn them into copies of yourself.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
