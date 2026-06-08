@@ -7,6 +7,9 @@ export interface GameState {
   status: GameStatus;
   score: number;
   totalNPCs: number;
+  health: number;
+  maxHealth: number;
+  setHealth: (health: number) => void;
   setScore: (score: number) => void;
   setStatus: (status: GameStatus) => void;
   joystickVector: { x: number; y: number };
@@ -17,12 +20,17 @@ export interface GameState {
   setShooting: (s: boolean) => void;
   playerPosition: [number, number, number];
   setPlayerPosition: (p: [number, number, number]) => void;
+  minimapCtx: CanvasRenderingContext2D | null;
+  setMinimapCtx: (ctx: CanvasRenderingContext2D | null) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
   status: 'playing',
   score: 0,
   totalNPCs: 45,
+  health: 1000,
+  maxHealth: 1000,
+  setHealth: (health) => set({ health }),
   setScore: (score) => set({ score }),
   setStatus: (status) => set({ status }),
   joystickVector: { x: 0, y: 0 },
@@ -33,4 +41,6 @@ export const useGameStore = create<GameState>((set) => ({
   setShooting: (s) => set({ isShooting: s }),
   playerPosition: [0, 0, 0],
   setPlayerPosition: (p) => set({ playerPosition: p }),
+  minimapCtx: null,
+  setMinimapCtx: (ctx) => set({ minimapCtx: ctx }),
 }));
