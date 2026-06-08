@@ -15,6 +15,8 @@ export interface GameState {
   setShootVector: (v: { x: number; y: number }) => void;
   isShooting: boolean;
   setShooting: (s: boolean) => void;
+  playerPosition: [number, number, number];
+  setPlayerPosition: (p: [number, number, number]) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -29,4 +31,6 @@ export const useGameStore = create<GameState>((set) => ({
   setShootVector: (v) => set({ shootVector: v }),
   isShooting: false,
   setShooting: (s) => set({ isShooting: s }),
+  playerPosition: [0, 0, 0],
+  setPlayerPosition: (p) => set({ playerPosition: p }),
 }));

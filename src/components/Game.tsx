@@ -4,6 +4,7 @@ import { Vector3, MathUtils, Group, MeshBasicMaterial, Mesh, Color } from 'three
 import { useGameStore } from '../store';
 import { Humanoid } from './Humanoid';
 import { City } from './City';
+import { resolveBuildingCollisions } from '../utils/buildings';
 
 const BOUNDARY = 45;
 const SPEED = 8;
@@ -275,6 +276,12 @@ export function GameScene() {
       playerPos.current.x = MathUtils.clamp(playerPos.current.x, -BOUNDARY, BOUNDARY);
       playerPos.current.z = MathUtils.clamp(playerPos.current.z, -BOUNDARY, BOUNDARY);
       
+      // Resolve building collisions
+      resolveBuildingCollisions(playerPos.current, 0.4);
+      
+      // Update store for camera/UI
+      useGameStore.getState().setPlayerPosition([playerPos.current.x, playerPos.current.y, playerPos.current.z]);
+      
       // Update rotation smoothly
       if (playerRef.current) {
         playerRef.current.position.copy(playerPos.current);
@@ -469,6 +476,7 @@ export function GameScene() {
           const dir = npc.position.clone().sub(playerPos.current).normalize();
           npc.position.add(dir.multiplyScalar(SPEED * 0.5 * delta));
         }
+        resolveBuildingCollisions(npc.position, 0.4);
       } else {
         // Unconverted NPC behavior: wander freely
         npc.timer -= delta;
@@ -485,6 +493,8 @@ export function GameScene() {
         
         npc.position.x = MathUtils.clamp(npc.position.x, -BOUNDARY, BOUNDARY);
         npc.position.z = MathUtils.clamp(npc.position.z, -BOUNDARY, BOUNDARY);
+
+        resolveBuildingCollisions(npc.position, 0.4);
 
         npcGrp.rotation.y = Math.atan2(npc.velocity.x, npc.velocity.z);
       }

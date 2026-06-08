@@ -1,33 +1,74 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Instances, Instance } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
+import { Mesh, MeshStandardMaterial } from 'three';
+import { BUILDINGS, BuildingData } from '../utils/buildings';
+
+function Building({ b, bColor }: { b: BuildingData; bColor: string }) {
+  const materialsRef = useRef<MeshStandardMaterial[]>([]);
+
+  useFrame((state) => {
+    // Determine if building is between camera and player
+    // Camera is roughly at (px, py+12, pz+16)
+    const playerZApprox = state.camera.position.z - 16;
+    const playerXApprox = state.camera.position.x;
+    
+    // Check if building is in front of the player (closer to camera) and block the view radially
+    const isOccluding = 
+        b.z > playerZApprox - b.d/2 &&
+        b.z < state.camera.position.z + 5 && 
+        Math.abs(b.x - playerXApprox) < b.w / 2 + 4.5 &&
+        b.h > 4;
+
+    const targetOpacity = isOccluding ? 0.3 : 1.0;
+
+    materialsRef.current.forEach((mat) => {
+      if (mat) {
+        mat.opacity += (targetOpacity - mat.opacity) * 0.1;
+        mat.transparent = true;
+        mat.depthWrite = !isOccluding;
+      }
+    });
+  });
+
+  return (
+    <group>
+      {/* Building Frame Block */}
+      <mesh receiveShadow castShadow position={[b.x, b.h / 2, b.z]}>
+        <boxGeometry args={[b.w, b.h, b.d]} />
+        <meshStandardMaterial 
+          ref={(m) => { if (m && !materialsRef.current.includes(m)) materialsRef.current.push(m); }}
+          color={bColor} 
+          roughness={0.7} 
+          metalness={0.15} 
+        />
+      </mesh>
+      
+      {/* AC Ventilation Roof Details on shorter skyscrapers */}
+      {b.h < 15 && (
+        <mesh position={[b.x, b.h + 0.15, b.z]}>
+          <boxGeometry args={[b.w * 0.6, 0.3, b.d * 0.6]} />
+          <meshStandardMaterial 
+            ref={(m) => { if (m && !materialsRef.current.includes(m)) materialsRef.current.push(m); }}
+            color="#403c37" roughness={0.8} 
+          />
+        </mesh>
+      )}
+
+      {/* Decorative vertical pillar slits extending upwards */}
+      <mesh position={[b.x + b.w * 0.5 - 0.1, b.h * 0.85, b.z - b.d * 0.5 + 0.1]}>
+        <boxGeometry args={[0.03, b.h * 0.3, 0.08]} />
+        <meshStandardMaterial 
+          ref={(m) => { if (m && !materialsRef.current.includes(m)) materialsRef.current.push(m); }}
+          color="#706861" roughness={0.8} 
+        />
+      </mesh>
+    </group>
+  );
+}
 
 export function City() {
-  const buildings = useMemo(() => {
-    const items = [];
-    // Generate styled buildings around the perimeter, avoiding the main central streets
-    for (let i = 0; i < 45; i++) {
-      const angle = (i / 45) * Math.PI * 2;
-      const radius = 18 + Math.random() * 25;
-      
-      const x = Math.cos(angle) * radius;
-      const z = Math.sin(angle) * radius;
-      
-      // Leave space for the main central cross-junction street
-      if (Math.abs(x) < 8 || Math.abs(z) < 8) continue;
-      
-      const width = 3 + Math.random() * 5;
-      const depth = 3 + Math.random() * 5;
-      const height = 8 + Math.random() * 22;
-      
-      // Define building variant stylistic decor (e.g. Neon colors or window patterns)
-      const lightTheme = Math.random() > 0.5 ? '#ff5500' : '#00ffff'; 
-      const lightHeight = height * (0.3 + Math.random() * 0.6);
-      const windowRows = Math.floor(4 + Math.random() * 6);
-      
-      items.push({ x, z, w: width, d: depth, h: height, id: i, lightTheme, lightHeight, windowRows });
-    }
-    return items;
-  }, []);
+  const buildings = BUILDINGS;
 
   const ledges = useMemo(() => buildings.flatMap(b => Array.from({ length: b.windowRows }).map((_, r) => {
     const hOffset = 1.0 + (r * (b.h - 1)) / b.windowRows;
@@ -250,31 +291,7 @@ export function City() {
         const bColor = buildingColors[b.id % buildingColors.length];
 
         return (
-          <group key={b.id}>
-            {/* Building Frame Block */}
-            <mesh receiveShadow castShadow position={[b.x, b.h / 2, b.z]}>
-              <boxGeometry args={[b.w, b.h, b.d]} />
-              <meshStandardMaterial color={bColor} roughness={0.7} metalness={0.15} />
-            </mesh>
-            
-            {/* AC Ventilation Roof Details on shorter skyscrapers */}
-            {b.h < 15 && (
-              <mesh position={[b.x, b.h + 0.15, b.z]}>
-                <boxGeometry args={[b.w * 0.6, 0.3, b.d * 0.6]} />
-                <meshStandardMaterial color="#403c37" roughness={0.8} />
-              </mesh>
-            )}
-
-            {/* Column border highlights - unlit metal corner piping */}
-            <mesh position={[b.x + b.w / 2 + 0.02, b.lightHeight, b.z - b.d / 2 + 0.2]}>
-              <boxGeometry args={[0.03, b.h * 0.45, 0.08]} />
-              <meshStandardMaterial color="#504a44" roughness={0.8} />
-            </mesh>
-            <mesh position={[b.x - b.w / 2 - 0.02, b.lightHeight + 1, b.z + b.d / 2 - 0.2]}>
-              <boxGeometry args={[0.03, b.h * 0.3, 0.08]} />
-              <meshStandardMaterial color="#706861" roughness={0.8} />
-            </mesh>
-          </group>
+          <Building key={b.id} b={b} bColor={bColor} />
         );
       })}
 
