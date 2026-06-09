@@ -1,6 +1,6 @@
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Group, MeshStandardMaterial, MathUtils } from "three";
+import { Group, MeshStandardMaterial, MathUtils, Vector3 } from "three";
 
 interface HumanoidProps {
   position?: [number, number, number];
@@ -9,6 +9,7 @@ interface HumanoidProps {
   isShooting: boolean;
   scale?: number;
   hasGun?: boolean;
+  dualWield?: boolean;
 }
 
 export function Humanoid({
@@ -18,6 +19,7 @@ export function Humanoid({
   isShooting,
   scale = 1,
   hasGun = false,
+  dualWield = false,
 }: HumanoidProps) {
   const rootRef = useRef<Group>(null);
   const bodyRef = useRef<Group>(null);
@@ -35,6 +37,8 @@ export function Humanoid({
   const rightKneeRef = useRef<Group>(null);
 
   const headRef = useRef<Group>(null);
+
+  const lastPosRef = useRef<[number, number, number] | null>(null);
 
   const suitMaterial = useMemo(
     () => new MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.15 }),
@@ -73,7 +77,21 @@ export function Humanoid({
     const t = state.clock.elapsedTime;
     const speed = 10;
 
-    if (isMoving && !isShooting) {
+    // Auto-detect movement by tracking actual world position delta
+    let actuallyMoving = isMoving;
+    if (rootRef.current) {
+      const worldPos = new Vector3();
+      rootRef.current.getWorldPosition(worldPos);
+      if (lastPosRef.current) {
+        const dx = worldPos.x - lastPosRef.current[0];
+        const dz = worldPos.z - lastPosRef.current[2];
+        const distSq = dx * dx + dz * dz;
+        actuallyMoving = distSq > 0.0001; // Moving somewhat
+      }
+      lastPosRef.current = [worldPos.x, worldPos.y, worldPos.z];
+    }
+
+    if (actuallyMoving && !isShooting) {
       // Walk Cycle
       const walkCycle = Math.sin(t * speed);
       const walkCycleLegs = Math.sin(t * speed);
@@ -100,12 +118,26 @@ export function Humanoid({
       }
 
       // Arms swing
-      if (leftArmRef.current)
-        leftArmRef.current.rotation.x = MathUtils.lerp(
-          leftArmRef.current.rotation.x,
-          -walkCycle * 0.5,
-          0.2,
-        );
+      if (leftArmRef.current) {
+        if (dualWield) {
+          leftArmRef.current.rotation.x = MathUtils.lerp(
+            leftArmRef.current.rotation.x,
+            -Math.PI / 4,
+            0.2,
+          );
+          leftArmRef.current.rotation.z = MathUtils.lerp(
+            leftArmRef.current.rotation.z,
+            0.1,
+            0.2,
+          );
+        } else {
+          leftArmRef.current.rotation.x = MathUtils.lerp(
+            leftArmRef.current.rotation.x,
+            -walkCycle * 0.5,
+            0.2,
+          );
+        }
+      }
 
       if (hasGun) {
         // Carry gun in a ready stance while running
@@ -145,12 +177,21 @@ export function Humanoid({
 
       // Left arm moves opposite to right arm
       // Elbow bends forward (negative x) when arm moves forward (negative x)
-      if (leftElbowRef.current)
-        leftElbowRef.current.rotation.x = MathUtils.lerp(
-          leftElbowRef.current.rotation.x,
-          -walkCycle < 0 ? -walkCycle * 0.5 : 0,
-          0.2,
-        );
+      if (leftElbowRef.current) {
+        if (dualWield) {
+          leftElbowRef.current.rotation.x = MathUtils.lerp(
+            leftElbowRef.current.rotation.x,
+            -0.5,
+            0.2,
+          );
+        } else {
+          leftElbowRef.current.rotation.x = MathUtils.lerp(
+            leftElbowRef.current.rotation.x,
+            -walkCycle < 0 ? -walkCycle * 0.5 : 0,
+            0.2,
+          );
+        }
+      }
 
       // Legs swing
       if (leftLegRef.current)
@@ -231,18 +272,38 @@ export function Humanoid({
         );
 
       if (!isShooting) {
-        if (leftArmRef.current)
-          leftArmRef.current.rotation.x = MathUtils.lerp(
-            leftArmRef.current.rotation.x,
-            0,
-            0.1,
-          );
-        if (leftElbowRef.current)
-          leftElbowRef.current.rotation.x = MathUtils.lerp(
-            leftElbowRef.current.rotation.x,
-            -0.1,
-            0.1,
-          );
+        if (leftArmRef.current) {
+          if (dualWield) {
+            leftArmRef.current.rotation.x = MathUtils.lerp(
+              leftArmRef.current.rotation.x,
+              -Math.PI / 4,
+              0.1,
+            );
+            leftArmRef.current.rotation.z = MathUtils.lerp(
+              leftArmRef.current.rotation.z,
+              0.05,
+              0.1,
+            );
+            if (leftElbowRef.current)
+              leftElbowRef.current.rotation.x = MathUtils.lerp(
+                leftElbowRef.current.rotation.x,
+                -0.4,
+                0.1,
+              );
+          } else {
+            leftArmRef.current.rotation.x = MathUtils.lerp(
+              leftArmRef.current.rotation.x,
+              0,
+              0.1,
+            );
+            if (leftElbowRef.current)
+              leftElbowRef.current.rotation.x = MathUtils.lerp(
+                leftElbowRef.current.rotation.x,
+                -0.1,
+                0.1,
+              );
+          }
+        }
 
         if (hasGun) {
           // Idle point gun forward-low
@@ -334,25 +395,45 @@ export function Humanoid({
           );
       }
 
-      // Guard left hand
+      // Guard left hand or shoot
       if (leftArmRef.current) {
-        leftArmRef.current.rotation.x = MathUtils.lerp(
-          leftArmRef.current.rotation.x,
-          -Math.PI / 3,
-          0.2,
-        );
-        leftArmRef.current.rotation.z = MathUtils.lerp(
-          leftArmRef.current.rotation.z,
-          0.3,
-          0.2,
-        );
-      }
-      if (leftElbowRef.current) {
-        leftElbowRef.current.rotation.x = MathUtils.lerp(
-          leftElbowRef.current.rotation.x,
-          -1.5,
-          0.2,
-        );
+        if (dualWield) {
+          leftArmRef.current.rotation.x = MathUtils.lerp(
+            leftArmRef.current.rotation.x,
+            -Math.PI / 2,
+            0.4,
+          );
+          leftArmRef.current.rotation.z = MathUtils.lerp(
+            leftArmRef.current.rotation.z,
+            0.1,
+            0.4,
+          );
+          if (leftElbowRef.current) {
+            leftElbowRef.current.rotation.x = MathUtils.lerp(
+              leftElbowRef.current.rotation.x,
+              -0.05,
+              0.4,
+            );
+          }
+        } else {
+          leftArmRef.current.rotation.x = MathUtils.lerp(
+            leftArmRef.current.rotation.x,
+            -Math.PI / 3,
+            0.2,
+          );
+          leftArmRef.current.rotation.z = MathUtils.lerp(
+            leftArmRef.current.rotation.z,
+            0.3,
+            0.2,
+          );
+          if (leftElbowRef.current) {
+            leftElbowRef.current.rotation.x = MathUtils.lerp(
+              leftElbowRef.current.rotation.x,
+              -1.5,
+              0.2,
+            );
+          }
+        }
       }
     } else {
       // Clean up rotation z
@@ -514,6 +595,37 @@ export function Humanoid({
             <mesh position={[0, -0.36, 0]} material={skinMaterial}>
               <boxGeometry args={[0.08, 0.12, 0.08]} />
             </mesh>
+
+            {dualWield && hasGun && (
+              <group position={[0, -0.42, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+                {/* Barrel / slide */}
+                <mesh
+                  castShadow
+                  material={
+                    new MeshStandardMaterial({
+                      color: "#1a1a1a",
+                      roughness: 0.15,
+                      metalness: 0.85,
+                    })
+                  }
+                >
+                  <boxGeometry args={[0.04, 0.06, 0.18]} />
+                </mesh>
+                {/* Grip / handle */}
+                <mesh
+                  position={[0, -0.05, -0.04]}
+                  rotation={[-0.3, 0, 0]}
+                  material={
+                    new MeshStandardMaterial({
+                      color: "#222",
+                      roughness: 0.9,
+                    })
+                  }
+                >
+                  <boxGeometry args={[0.035, 0.09, 0.05]} />
+                </mesh>
+              </group>
+            )}
           </group>
         </group>
 

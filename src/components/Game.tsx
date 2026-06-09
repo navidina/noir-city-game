@@ -15,7 +15,7 @@ import { resolveBuildingCollisions, BUILDINGS } from "../utils/buildings";
 
 const BOUNDARY = 45;
 const SPEED = 8;
-const MAX_ACTIVE_BULLETS = 35;
+const MAX_ACTIVE_BULLETS = 70;
 const MAX_PARTICLES = 250;
 
 // High-performance shared synthesizers using cached AudioContext & pre-generated noise buffer
@@ -179,9 +179,11 @@ export function GameScene() {
           .normalize()
           .multiplyScalar(2 + Math.random() * 2),
         converted: false,
+        dead: false,
         timer: Math.random() * 5,
         lastShootTime: Math.random() * 2, // Stagger initial shots
         isShooting: false, // For animation
+        isMoving: false,
       });
     }
     return list;
@@ -189,6 +191,7 @@ export function GameScene() {
 
   // Conversions, hit counts and flashing damage states
   const [convertedMap, setConvertedMap] = useState<Record<number, boolean>>({});
+  const [deadMap, setDeadMap] = useState<Record<number, boolean>>({});
   const [npcHitsMap, setNpcHitsMap] = useState<Record<number, number>>({});
   const [flashMap, setFlashMap] = useState<Record<number, boolean>>({});
 
@@ -458,34 +461,48 @@ export function GameScene() {
         Math.cos(playerRot),
       ).normalize();
 
-      // Set offset position slightly matches hand elevation
-      const firePos = playerPos.current
+      const rightVec = new Vector3(fireDir.z, 0, -fireDir.x);
+
+      // We need to spawn two bullets for dual-wielding!
+      // Right gun offset
+      const firePosRight = playerPos.current
+        .clone()
+        .add(new Vector3(0, 0.9, 0)) // chest height
+        .addScaledVector(rightVec, 0.3) // pushed to right shoulder
+        .addScaledVector(fireDir, 0.65); // pushed forward
+
+      // Left gun offset
+      const firePosLeft = playerPos.current
         .clone()
         .add(new Vector3(0, 0.9, 0))
+        .addScaledVector(rightVec, -0.3) // pushed to left shoulder
         .addScaledVector(fireDir, 0.65);
 
-      const idx = nextBulletIdxRef.current;
-      const bulletToActivate = bulletPoolRef.current[idx];
+      const emitBullet = (pos: Vector3, dir: Vector3) => {
+        const idx = nextBulletIdxRef.current;
+        const bulletToActivate = bulletPoolRef.current[idx];
+        bulletToActivate.position.copy(pos);
+        bulletToActivate.direction.copy(dir);
+        bulletToActivate.active = true;
 
-      bulletToActivate.position.copy(firePos);
-      bulletToActivate.direction.copy(fireDir);
-      bulletToActivate.active = true;
+        const mesh = bulletMeshesPoolRef.current[idx];
+        if (mesh) {
+          mesh.position.copy(pos);
+          mesh.rotation.y = playerRot;
+          mesh.visible = true;
+        }
+
+        nextBulletIdxRef.current = (idx + 1) % MAX_ACTIVE_BULLETS;
+      };
+
+      emitBullet(firePosRight, fireDir);
+      emitBullet(firePosLeft, fireDir);
 
       // Play brief high-intensity muzzle flash blast animation
       setMuzzleFlash(true);
       setTimeout(() => {
         setMuzzleFlash(false);
       }, 55);
-
-      // Bring mesh to initial coordinate and trigger visibility instantly without React trigger
-      const mesh = bulletMeshesPoolRef.current[idx];
-      if (mesh) {
-        mesh.position.copy(firePos);
-        mesh.rotation.y = playerRot; // Align long laser/tracer box along axis!
-        mesh.visible = true;
-      }
-
-      nextBulletIdxRef.current = (idx + 1) % MAX_ACTIVE_BULLETS;
     }
 
     // Direct loop transformation of active bullets (Zero React state impact)
@@ -515,6 +532,8 @@ export function GameScene() {
 
       for (let i = 0; i < npcs.length; i++) {
         const npc = npcs[i];
+        if (npc.dead) continue;
+
         const npcId = npc.id;
         const isNpcAlreadyConverted = npc.converted || convertedMap[npcId];
 
@@ -607,6 +626,26 @@ export function GameScene() {
           useGameStore.getState().setStatus("lost");
         }
       }
+
+      // Check collision with converted NPCs
+      for (let i = 0; i < npcs.length; i++) {
+        const npc = npcs[i];
+        if (npc.dead) continue;
+
+        const isNpcAlreadyConverted = npc.converted || convertedMap[npc.id];
+        if (isNpcAlreadyConverted) {
+          if (pos.distanceTo(npc.position) < 1.1) {
+            bullet.active = false;
+            if (mesh) mesh.visible = false;
+
+            npc.dead = true;
+            setDeadMap((prev) => ({ ...prev, [npc.id]: true }));
+            triggerHitParticles(npc.position, bullet.direction, "blood");
+            playHitSound();
+            break;
+          }
+        }
+      }
     });
 
     // Animate High-performance Debris Particles
@@ -657,46 +696,130 @@ export function GameScene() {
       const npcGrp = npcRefs.current[index];
       if (!npcGrp) return;
 
+      if (npc.dead) {
+        npcGrp.visible = false;
+        return;
+      } else {
+        npcGrp.visible = true;
+      }
+
       const isNpcAlreadyConverted = npc.converted || convertedMap[npc.id];
 
       if (isNpcAlreadyConverted) {
-        // Converted NPC behavior: follow player organically
-        const dist = npc.position.distanceTo(playerPos.current);
-        if (dist > 3) {
-          const dir = playerPos.current.clone().sub(npc.position).normalize();
-          npc.position.add(dir.multiplyScalar(SPEED * 0.8 * delta));
-          npcGrp.rotation.y = Math.atan2(dir.x, dir.z);
-        } else if (dist < 2) {
-          const dir = npc.position.clone().sub(playerPos.current).normalize();
-          npc.position.add(dir.multiplyScalar(SPEED * 0.5 * delta));
+        // Converted NPC behavior: seek unconverted and convert!
+        let closestTargetDist = 9999;
+        let closestTargetPos: Vector3 | null = null;
+
+        for (let i = 0; i < npcs.length; i++) {
+          const other = npcs[i];
+          if (!other.converted && !convertedMap[other.id] && !other.dead) {
+            const d = npc.position.distanceTo(other.position);
+            if (d < closestTargetDist) {
+              closestTargetDist = d;
+              closestTargetPos = other.position;
+            }
+          }
         }
+
+        if (closestTargetPos && useGameStore.getState().status === "playing") {
+          const dir = closestTargetPos.clone().sub(npc.position).normalize();
+
+          if (closestTargetDist > 8) {
+            npc.position.add(dir.multiplyScalar(SPEED * 0.8 * delta));
+          }
+          npcGrp.rotation.y = Math.atan2(dir.x, dir.z);
+
+          // Shoot logic
+          if (time - npc.lastShootTime > 1.5) {
+            npc.lastShootTime = time;
+            npc.isShooting = true;
+            playShootSound();
+
+            const fireDir = dir.clone();
+            fireDir.x += (Math.random() - 0.5) * 0.1;
+            fireDir.z += (Math.random() - 0.5) * 0.1;
+            fireDir.normalize();
+
+            const firePos = npc.position
+              .clone()
+              .add(new Vector3(0, 0.9, 0))
+              .addScaledVector(fireDir, 0.65);
+
+            const idx = nextBulletIdxRef.current;
+            const bulletToActivate = bulletPoolRef.current[idx];
+
+            bulletToActivate.position.copy(firePos);
+            bulletToActivate.direction.copy(fireDir);
+            bulletToActivate.active = true;
+
+            const mesh = bulletMeshesPoolRef.current[idx];
+            if (mesh) {
+              mesh.position.copy(firePos);
+              mesh.rotation.y = npcGrp.rotation.y;
+              mesh.visible = true;
+            }
+
+            nextBulletIdxRef.current = (idx + 1) % MAX_ACTIVE_BULLETS;
+
+            setTimeout(() => {
+              if (npcRefs.current[index]) npc.isShooting = false;
+            }, 100);
+          }
+        } else {
+          // Wander freely
+          npc.timer -= delta;
+          if (npc.timer <= 0) {
+            npc.timer = 2 + Math.random() * 3;
+            npc.velocity
+              .set(Math.random() - 0.5, 0, Math.random() - 0.5)
+              .normalize()
+              .multiplyScalar(2 + Math.random() * 2);
+          }
+          npc.position.add(npc.velocity.clone().multiplyScalar(delta));
+          npcGrp.rotation.y = Math.atan2(npc.velocity.x, npc.velocity.z);
+        }
+
         resolveBuildingCollisions(npc.position, 0.4);
       } else {
-        // Unconverted NPC behavior: wander or attack!
-        const distToPlayer = npc.position.distanceTo(playerPos.current);
-        const canSeePlayer = distToPlayer < 18;
+        // Unconverted NPC behavior: attack player or converted NPCs
+        let closestTargetDist = npc.position.distanceTo(playerPos.current);
+        let closestTargetPos = playerPos.current;
+
+        for (let i = 0; i < npcs.length; i++) {
+          const other = npcs[i];
+          if (
+            other.id !== npc.id &&
+            (other.converted || convertedMap[other.id]) &&
+            !other.dead
+          ) {
+            const d = npc.position.distanceTo(other.position);
+            if (d < closestTargetDist) {
+              closestTargetDist = d;
+              closestTargetPos = other.position;
+            }
+          }
+        }
+
+        const distToTarget = closestTargetDist;
+        const canSeeTarget = distToTarget < 18;
 
         npc.timer -= delta;
 
-        if (canSeePlayer && useGameStore.getState().status === "playing") {
-          // Chase and attack
-          const dir = playerPos.current.clone().sub(npc.position).normalize();
+        if (canSeeTarget && useGameStore.getState().status === "playing") {
+          const dir = closestTargetPos.clone().sub(npc.position).normalize();
 
-          if (distToPlayer > 8) {
-            // Move closer
+          if (closestTargetDist > 8) {
             npc.position.add(dir.multiplyScalar(SPEED * 0.6 * delta));
           }
           npcGrp.rotation.y = Math.atan2(dir.x, dir.z);
 
           // Shoot logic
           if (time - npc.lastShootTime > 3.0) {
-            // 3.0s cooldown
             npc.lastShootTime = time;
             npc.isShooting = true;
             playShootSound();
 
-            // Fire towards player
-            const fireDir = dir.clone(); // use pure direction, maybe slight inaccuracy?
+            const fireDir = dir.clone();
             fireDir.x += (Math.random() - 0.5) * 0.5;
             fireDir.z += (Math.random() - 0.5) * 0.5;
             fireDir.normalize();
@@ -722,7 +845,6 @@ export function GameScene() {
 
             nextEnemyBulletIdxRef.current = (idx + 1) % MAX_ENEMY_BULLETS;
 
-            // stop recoil animation slightly after
             setTimeout(() => {
               if (npcRefs.current[index]) npc.isShooting = false;
             }, 100);
@@ -806,6 +928,8 @@ export function GameScene() {
       // Draw NPCs
       for (let i = 0; i < npcs.length; i++) {
         const npc = npcs[i];
+        if (npc.dead || deadMap[npc.id]) continue;
+
         const nx = cx + npc.position.x * scale;
         const ny = cy + npc.position.z * scale;
 
@@ -872,6 +996,7 @@ export function GameScene() {
           isMoving={playerMoving}
           isShooting={isShooting}
           hasGun={true}
+          dualWield={true}
         />
 
         {/* Sleek tactical focus vector indicators under prime player's feet to make them extra prominent */}
@@ -922,6 +1047,7 @@ export function GameScene() {
         const isConverted = convertedMap[npc.id];
         const hits = npcHitsMap[npc.id] || 0;
         const isFlashing = flashMap[npc.id];
+        const isDead = deadMap[npc.id];
 
         let suitColor = isConverted ? "#000000" : "#cccccc";
         if (isFlashing) {
@@ -934,7 +1060,11 @@ export function GameScene() {
         const posX = barWidth / 2 - 0.25;
 
         return (
-          <group key={npc.id} ref={(el) => (npcRefs.current[i] = el as Group)}>
+          <group
+            key={npc.id}
+            ref={(el) => (npcRefs.current[i] = el as Group)}
+            visible={!isDead}
+          >
             <Humanoid
               color={suitColor}
               isMoving={true}
