@@ -94,7 +94,7 @@ export function Humanoid({
       lastPosRef.current = [_worldPos.x, _worldPos.y, _worldPos.z];
     }
 
-    if (actuallyMoving && !isShooting) {
+    if (actuallyMoving) {
       // Walk Cycle
       const walkCycle = Math.sin(t * speed);
       const walkCycleLegs = Math.sin(t * speed);
@@ -107,12 +107,15 @@ export function Humanoid({
           0.2,
         );
 
-        // Torso twist opposite to legs forward
-        bodyRef.current.rotation.y = MathUtils.lerp(
-          bodyRef.current.rotation.y,
-          walkCycle * 0.1,
-          0.2,
-        );
+        if (!isShooting && !isReloading) {
+          // Torso twist opposite to legs forward
+          bodyRef.current.rotation.y = MathUtils.lerp(
+            bodyRef.current.rotation.y,
+            walkCycle * 0.1,
+            0.2,
+          );
+        }
+        
         bodyRef.current.rotation.z = MathUtils.lerp(
           bodyRef.current.rotation.z,
           Math.sin(t * speed * 2) * 0.02,
@@ -120,79 +123,81 @@ export function Humanoid({
         );
       }
 
-      // Arms swing
-      if (leftArmRef.current) {
-        if (dualWield) {
-          leftArmRef.current.rotation.x = MathUtils.lerp(
-            leftArmRef.current.rotation.x,
-            -Math.PI / 4,
-            0.2,
-          );
-          leftArmRef.current.rotation.z = MathUtils.lerp(
-            leftArmRef.current.rotation.z,
-            0.1,
-            0.2,
-          );
-        } else {
-          leftArmRef.current.rotation.x = MathUtils.lerp(
-            leftArmRef.current.rotation.x,
-            -walkCycle * 0.5,
-            0.2,
-          );
+      if (!isShooting && !isReloading) {
+        // Arms swing
+        if (leftArmRef.current) {
+          if (dualWield) {
+            leftArmRef.current.rotation.x = MathUtils.lerp(
+              leftArmRef.current.rotation.x,
+              -Math.PI / 4,
+              0.2,
+            );
+            leftArmRef.current.rotation.z = MathUtils.lerp(
+              leftArmRef.current.rotation.z,
+              0.1,
+              0.2,
+            );
+          } else {
+            leftArmRef.current.rotation.x = MathUtils.lerp(
+              leftArmRef.current.rotation.x,
+              -walkCycle * 0.5,
+              0.2,
+            );
+          }
         }
-      }
 
-      if (hasGun) {
-        // Carry gun in a ready stance while running
-        if (rightArmRef.current) {
-          rightArmRef.current.rotation.x = MathUtils.lerp(
-            rightArmRef.current.rotation.x,
-            -Math.PI / 4,
-            0.2,
-          );
-          rightArmRef.current.rotation.z = MathUtils.lerp(
-            rightArmRef.current.rotation.z,
-            -0.1,
-            0.2,
-          );
-        }
-        if (rightElbowRef.current)
-          rightElbowRef.current.rotation.x = MathUtils.lerp(
-            rightElbowRef.current.rotation.x,
-            -0.5,
-            0.2,
-          );
-      } else {
-        if (rightArmRef.current)
-          rightArmRef.current.rotation.x = MathUtils.lerp(
-            rightArmRef.current.rotation.x,
-            walkCycle * 0.5,
-            0.2,
-          );
-        // Elbow bends forward (negative x) when arm moves forward (negative x).
-        if (rightElbowRef.current)
-          rightElbowRef.current.rotation.x = MathUtils.lerp(
-            rightElbowRef.current.rotation.x,
-            walkCycle < 0 ? walkCycle * 0.5 : 0,
-            0.2,
-          );
-      }
-
-      // Left arm moves opposite to right arm
-      // Elbow bends forward (negative x) when arm moves forward (negative x)
-      if (leftElbowRef.current) {
-        if (dualWield) {
-          leftElbowRef.current.rotation.x = MathUtils.lerp(
-            leftElbowRef.current.rotation.x,
-            -0.5,
-            0.2,
-          );
+        if (hasGun) {
+          // Carry gun in a ready stance while running
+          if (rightArmRef.current) {
+            rightArmRef.current.rotation.x = MathUtils.lerp(
+              rightArmRef.current.rotation.x,
+              -Math.PI / 4,
+              0.2,
+            );
+            rightArmRef.current.rotation.z = MathUtils.lerp(
+              rightArmRef.current.rotation.z,
+              -0.1,
+              0.2,
+            );
+          }
+          if (rightElbowRef.current)
+            rightElbowRef.current.rotation.x = MathUtils.lerp(
+              rightElbowRef.current.rotation.x,
+              -0.5,
+              0.2,
+            );
         } else {
-          leftElbowRef.current.rotation.x = MathUtils.lerp(
-            leftElbowRef.current.rotation.x,
-            -walkCycle < 0 ? -walkCycle * 0.5 : 0,
-            0.2,
-          );
+          if (rightArmRef.current)
+            rightArmRef.current.rotation.x = MathUtils.lerp(
+              rightArmRef.current.rotation.x,
+              walkCycle * 0.5,
+              0.2,
+            );
+          // Elbow bends forward (negative x) when arm moves forward (negative x).
+          if (rightElbowRef.current)
+            rightElbowRef.current.rotation.x = MathUtils.lerp(
+              rightElbowRef.current.rotation.x,
+              walkCycle < 0 ? walkCycle * 0.5 : 0,
+              0.2,
+            );
+        }
+
+        // Left arm moves opposite to right arm
+        // Elbow bends forward (negative x) when arm moves forward (negative x)
+        if (leftElbowRef.current) {
+          if (dualWield) {
+            leftElbowRef.current.rotation.x = MathUtils.lerp(
+              leftElbowRef.current.rotation.x,
+              -0.5,
+              0.2,
+            );
+          } else {
+            leftElbowRef.current.rotation.x = MathUtils.lerp(
+              leftElbowRef.current.rotation.x,
+              -walkCycle < 0 ? -walkCycle * 0.5 : 0,
+              0.2,
+            );
+          }
         }
       }
 
