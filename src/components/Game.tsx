@@ -475,16 +475,16 @@ export function GameScene() {
       // Right gun offset
       _firePosRight
         .copy(playerPos.current)
-        .add(_chestOffset) // chest height
-        .addScaledVector(_rightVec, 0.3) // pushed to right shoulder
-        .addScaledVector(_fireDir, 0.65); // pushed forward
+        .addScaledVector(_tmpVec.set(0, 1.35, 0), 1) // shoulder height
+        .addScaledVector(_rightVec, 0.28) // pushed to right shoulder
+        .addScaledVector(_fireDir, 0.89); // pushed forward
 
       // Left gun offset
       _firePosLeft
         .copy(playerPos.current)
-        .add(_chestOffset)
-        .addScaledVector(_rightVec, -0.3) // pushed to left shoulder
-        .addScaledVector(_fireDir, 0.65);
+        .addScaledVector(_tmpVec.set(0, 1.35, 0), 1) // shoulder height
+        .addScaledVector(_rightVec, -0.28) // pushed to left shoulder
+        .addScaledVector(_fireDir, 0.89); // pushed forward
 
       const emitBullet = (pos: Vector3, dir: Vector3) => {
         const idx = nextBulletIdxRef.current;
@@ -546,10 +546,12 @@ export function GameScene() {
         const isNpcAlreadyConverted = npc.converted || convertedMap[npcId];
 
         if (!isNpcAlreadyConverted) {
-          const distance = pos.distanceTo(npc.position);
+          // Use 2D distance since bullets are spawned at shoulder height
+          const distSq =
+            (pos.x - npc.position.x) ** 2 + (pos.z - npc.position.z) ** 2;
 
           // Standard satisfying collision radius (1.1 fits hitbox bounds)
-          if (distance < 1.1) {
+          if (distSq < 1.1 * 1.1) {
             bullet.active = false;
             if (mesh) mesh.visible = false;
 
@@ -616,9 +618,11 @@ export function GameScene() {
       }
 
       // Check collision with player
+      const distSqToPlayer =
+        (pos.x - playerPos.current.x) ** 2 + (pos.z - playerPos.current.z) ** 2;
       if (
         useGameStore.getState().status === "playing" &&
-        pos.distanceTo(playerPos.current) < 1.1
+        distSqToPlayer < 1.1 * 1.1
       ) {
         bullet.active = false;
         if (mesh) mesh.visible = false;
@@ -642,7 +646,9 @@ export function GameScene() {
 
         const isNpcAlreadyConverted = npc.converted || convertedMap[npc.id];
         if (isNpcAlreadyConverted) {
-          if (pos.distanceTo(npc.position) < 1.1) {
+          const distSqToConverted =
+            (pos.x - npc.position.x) ** 2 + (pos.z - npc.position.z) ** 2;
+          if (distSqToConverted < 1.1 * 1.1) {
             bullet.active = false;
             if (mesh) mesh.visible = false;
 
@@ -753,8 +759,12 @@ export function GameScene() {
 
             _npcFirePos
               .copy(npc.position)
-              .add(_chestOffset)
-              .addScaledVector(_npcFireDir, 0.65);
+              .addScaledVector(_tmpVec.set(0, 1.35, 0), 1) // shoulder height
+              .addScaledVector(
+                _rightVec.set(_npcFireDir.z, 0, -_npcFireDir.x),
+                0.28,
+              ) // offset for right arm
+              .addScaledVector(_npcFireDir, 0.89); // bullet origin
 
             const idx = nextBulletIdxRef.current;
             const bulletToActivate = bulletPoolRef.current[idx];
@@ -840,8 +850,12 @@ export function GameScene() {
 
             _npcFirePos
               .copy(npc.position)
-              .add(_chestOffset)
-              .addScaledVector(_npcFireDir, 0.65);
+              .addScaledVector(_tmpVec.set(0, 1.35, 0), 1) // shoulder height
+              .addScaledVector(
+                _rightVec.set(_npcFireDir.z, 0, -_npcFireDir.x),
+                0.28,
+              ) // offset for right arm
+              .addScaledVector(_npcFireDir, 0.89); // bullet origin
 
             const idx = nextEnemyBulletIdxRef.current;
             const bulletToActivate = enemyBulletPoolRef.current[idx];
@@ -1035,23 +1049,43 @@ export function GameScene() {
 
         {/* Cinematic firearm muzzle flash spark bursts & point lights! */}
         {muzzleFlash && (
-          <group position={[0.26, 0.85, 0.65]}>
-            {/* Yellow flare sphere */}
-            <mesh>
-              <sphereGeometry args={[0.24, 6, 6]} />
-              <meshBasicMaterial color="#ffffff" />
-            </mesh>
-            {/* Stretched spike boxes */}
-            <mesh>
-              <boxGeometry args={[0.05, 0.5, 0.05]} />
-              <meshBasicMaterial color="#ffaa33" />
-            </mesh>
-            <mesh rotation={[0, 0, Math.PI / 2]}>
-              <boxGeometry args={[0.05, 0.5, 0.05]} />
-              <meshBasicMaterial color="#ffaa33" />
-            </mesh>
-            {/* Transient high power spotlight overlay flare */}
-            <pointLight intensity={10} distance={6} color="#ff9c33" />
+          <group>
+            {/* Right gun blast */}
+            <group position={[0.28, 1.35, 0.89]}>
+              {/* Yellow flare sphere */}
+              <mesh>
+                <sphereGeometry args={[0.24, 6, 6]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              {/* Stretched spike boxes */}
+              <mesh>
+                <boxGeometry args={[0.05, 0.5, 0.05]} />
+                <meshBasicMaterial color="#ffaa33" />
+              </mesh>
+              <mesh rotation={[0, 0, Math.PI / 2]}>
+                <boxGeometry args={[0.05, 0.5, 0.05]} />
+                <meshBasicMaterial color="#ffaa33" />
+              </mesh>
+              {/* Transient high power spotlight overlay flare */}
+              <pointLight intensity={5} distance={6} color="#ff9c33" />
+            </group>
+
+            {/* Left gun blast */}
+            <group position={[-0.28, 1.35, 0.89]}>
+              <mesh>
+                <sphereGeometry args={[0.24, 6, 6]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              <mesh>
+                <boxGeometry args={[0.05, 0.5, 0.05]} />
+                <meshBasicMaterial color="#ffaa33" />
+              </mesh>
+              <mesh rotation={[0, 0, Math.PI / 2]}>
+                <boxGeometry args={[0.05, 0.5, 0.05]} />
+                <meshBasicMaterial color="#ffaa33" />
+              </mesh>
+              <pointLight intensity={5} distance={6} color="#ff9c33" />
+            </group>
           </group>
         )}
       </group>
