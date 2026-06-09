@@ -220,6 +220,7 @@ export function GameScene() {
   const playerRef = useRef<Group>(null);
   const playerPos = useRef(new Vector3(0, 0, 0));
   const [playerMoving, setPlayerMoving] = useState(false);
+  const [playerRunning, setPlayerRunning] = useState(false);
   const [muzzleFlash, setMuzzleFlash] = useState(false);
 
   // Conversions, hit counts and flashing damage states
@@ -495,10 +496,13 @@ export function GameScene() {
 
     const gameStatus = useGameStore.getState().status;
     let isMoving = false;
+    let isRunning = false;
 
     if (gameStatus === "playing") {
-      if (Math.abs(jx) > 0.01 || Math.abs(jy) > 0.01) {
+      const joystickIntensity = Math.min(1, Math.hypot(jx, jy));
+      if (joystickIntensity > 0.01) {
         isMoving = true;
+        isRunning = joystickIntensity > 0.8;
 
         _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
         _right.y = 0;
@@ -513,9 +517,12 @@ export function GameScene() {
           .add(_right.multiplyScalar(jx))
           .normalize();
 
+        // Increase speed if running
+        const currentSpeed = isRunning ? SPEED * 1.6 : SPEED * joystickIntensity * 0.8;
+
         // Update position
         playerPos.current.add(
-          _cameraTarget.copy(_moveDir).multiplyScalar(SPEED * delta),
+          _cameraTarget.copy(_moveDir).multiplyScalar(currentSpeed * delta),
         );
 
         // Clamp to boundary
@@ -636,6 +643,7 @@ export function GameScene() {
     }
 
     if (playerMoving !== isMoving) setPlayerMoving(isMoving);
+    if (playerRunning !== isRunning) setPlayerRunning(isRunning);
 
     // Camera follow (isometric offset)
     camera.position.lerp(
@@ -1373,6 +1381,7 @@ export function GameScene() {
         <Humanoid
           color="#000000"
           isMoving={playerMoving}
+          isRunning={playerRunning}
           isShooting={isShooting}
           hasGun={true}
           dualWield={useGameStore.getState().weapon === 'pistol'}
@@ -1577,6 +1586,7 @@ export function GameScene() {
             <Humanoid
               color={suitColor}
               isMoving={true}
+              isRunning={npc.type === "rusher"}
               isShooting={(npc.type !== "rusher" && npc.isShooting) || false}
               hasGun={npc.type !== "rusher"} // Rushers don't carry guns
             />

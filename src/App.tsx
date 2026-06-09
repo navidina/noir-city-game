@@ -31,16 +31,16 @@ export default function App() {
       
       {/* Side Info (Visible only in desktop preview) */}
       <div className="ml-12 max-w-xs hidden xl:block z-10">
-        <h1 className="text-4xl font-serif italic mb-6">SOLIPSISM</h1>
+        <h1 className="text-4xl font-serif italic text-black/90 mb-6">SOLIPSISM</h1>
         <div className="space-y-6">
           <div>
-            <h3 className="text-[10px] tracking-[0.2em] uppercase text-white/40 mb-2">Mission Objective</h3>
-            <p className="text-sm leading-relaxed text-white/70">Eliminate individuality. Convert all remaining 92 citizens of Sector 4 into your likeness. Complete the assimilation to win.</p>
+            <h3 className="text-[10px] tracking-[0.2em] uppercase text-black/50 mb-2">Mission Objective</h3>
+            <p className="text-sm leading-relaxed text-black/80">Eliminate individuality. Convert all remaining citizens into your likeness. Complete the assimilation to win.</p>
           </div>
-          <div className="h-[1px] w-20 bg-white/10"></div>
+          <div className="h-[1px] w-20 bg-black/10"></div>
           <div className="flex items-center gap-4">
-            <div className="px-3 py-1 border border-white/20 text-[10px] tracking-widest">DAYLIGHT MODE</div>
-            <div className="px-3 py-1 border border-white/20 text-[10px] tracking-widest uppercase">Isometric 3D</div>
+            <div className="px-3 py-1 border border-black/20 text-black/70 text-[10px] tracking-widest">DAYLIGHT MODE</div>
+            <div className="px-3 py-1 border border-black/20 text-black/70 text-[10px] tracking-widest uppercase">Isometric 3D</div>
           </div>
         </div>
       </div>

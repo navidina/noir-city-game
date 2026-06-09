@@ -143,7 +143,7 @@ export function City() {
         <planeGeometry args={[110, 110]} />
         <meshStandardMaterial
           color="#8c887f"
-          roughness={0.65} // Natural daylight concrete roughness
+          roughness={0.65}
           metalness={0.1}
         />
       </mesh>
