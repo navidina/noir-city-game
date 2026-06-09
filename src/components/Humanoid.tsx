@@ -10,6 +10,7 @@ interface HumanoidProps {
   scale?: number;
   hasGun?: boolean;
   dualWield?: boolean;
+  isReloading?: boolean;
 }
 
 const _worldPos = new Vector3();
@@ -22,6 +23,7 @@ export function Humanoid({
   scale = 1,
   hasGun = false,
   dualWield = false,
+  isReloading = false,
 }: HumanoidProps) {
   const rootRef = useRef<Group>(null);
   const bodyRef = useRef<Group>(null);
@@ -343,8 +345,33 @@ export function Humanoid({
       }
     }
 
-    // Shooting Pose (Takes priority)
-    if (isShooting) {
+    // Shooting / Reloading Pose (Takes priority)
+    const recoilX = isShooting && !isReloading ? (Math.sin(state.clock.getElapsedTime() * 40) > 0 ? -0.2 : 0) : 0;
+
+    if (isReloading) {
+      if (bodyRef.current) {
+        bodyRef.current.rotation.y = MathUtils.lerp(bodyRef.current.rotation.y, 0, 0.3);
+      }
+      
+      // fast alternating hands rotation
+      const reloadTwirl = Math.sin(t * 15);
+      
+      if (rightArmRef.current) {
+        rightArmRef.current.rotation.x = MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 4 + reloadTwirl * 0.2, 0.4);
+        rightArmRef.current.rotation.z = MathUtils.lerp(rightArmRef.current.rotation.z, 0.2, 0.4);
+      }
+      if (rightElbowRef.current) {
+        rightElbowRef.current.rotation.x = MathUtils.lerp(rightElbowRef.current.rotation.x, -1.0, 0.4);
+      }
+
+      if (leftArmRef.current) {
+        leftArmRef.current.rotation.x = MathUtils.lerp(leftArmRef.current.rotation.x, -Math.PI / 4 - reloadTwirl * 0.2, 0.4);
+        leftArmRef.current.rotation.z = MathUtils.lerp(leftArmRef.current.rotation.z, -0.2, 0.4);
+      }
+      if (leftElbowRef.current) {
+        leftElbowRef.current.rotation.x = MathUtils.lerp(leftElbowRef.current.rotation.x, -1.0, 0.4);
+      }
+    } else if (isShooting) {
       if (bodyRef.current) {
         // Twist slightly
         bodyRef.current.rotation.y = MathUtils.lerp(
@@ -359,7 +386,7 @@ export function Humanoid({
         if (rightArmRef.current) {
           rightArmRef.current.rotation.x = MathUtils.lerp(
             rightArmRef.current.rotation.x,
-            -Math.PI / 2,
+            -Math.PI / 2 + recoilX,
             0.4,
           );
           rightArmRef.current.rotation.z = MathUtils.lerp(
@@ -371,7 +398,7 @@ export function Humanoid({
         if (rightElbowRef.current)
           rightElbowRef.current.rotation.x = MathUtils.lerp(
             rightElbowRef.current.rotation.x,
-            -0.05,
+            -0.05 + recoilX * 0.5,
             0.4,
           );
       } else {
@@ -401,7 +428,7 @@ export function Humanoid({
         if (dualWield) {
           leftArmRef.current.rotation.x = MathUtils.lerp(
             leftArmRef.current.rotation.x,
-            -Math.PI / 2,
+            -Math.PI / 2 + recoilX,
             0.4,
           );
           leftArmRef.current.rotation.z = MathUtils.lerp(
@@ -412,7 +439,7 @@ export function Humanoid({
           if (leftElbowRef.current) {
             leftElbowRef.current.rotation.x = MathUtils.lerp(
               leftElbowRef.current.rotation.x,
-              -0.05,
+              -0.05 + recoilX * 0.5,
               0.4,
             );
           }

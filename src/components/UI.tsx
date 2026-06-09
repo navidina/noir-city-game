@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useGameStore } from "../store";
+import { useGameStore, WEAPONS } from "../store";
 
 function TopLeftHUD() {
-  const { score, totalNPCs, minimapCtx, health, maxHealth } = useGameStore();
+  const { score, totalNPCs, wave, health, maxHealth, weapon, ammo, isReloading } = useGameStore();
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
   const setMinimapCtx = useGameStore((s) => s.setMinimapCtx);
 
@@ -12,23 +12,46 @@ function TopLeftHUD() {
     }
   }, [setMinimapCtx]);
 
+  const weaponStats = WEAPONS[weapon];
+
   return (
     <div className="flex flex-col items-start gap-3 pointer-events-auto">
       {/* HUD Container */}
       <div className="px-2 py-1 w-[160px]">
         {/* Simple Score */}
-        <h2 className="text-2xl font-serif italic font-bold tracking-tight text-white flex justify-start items-baseline gap-1.5 drop-shadow-md mb-2">
-          {score.toString()}
-          <span className="text-sm font-sans font-normal text-white/80 uppercase">
-            / {totalNPCs}
+        <div className="flex justify-between items-baseline mb-1">
+          <h2 className="text-2xl font-serif italic font-bold tracking-tight text-white flex justify-start items-baseline gap-1.5 drop-shadow-md">
+            {score.toString()}
+            <span className="text-sm font-sans font-normal text-white/80 uppercase">
+              / {totalNPCs}
+            </span>
+          </h2>
+          <span className="text-sm font-bold text-red-500 uppercase tracking-widest drop-shadow-md">
+            WAVE {wave}
           </span>
-        </h2>
+        </div>
 
         {/* Health Bar Component */}
-        <div className="w-full h-1.5 bg-black/50 border border-white/20 overflow-hidden relative">
+        <div className="w-full h-1.5 bg-black/50 border border-white/20 overflow-hidden relative mb-1.5">
           <div
             className="h-full bg-red-500 transition-all duration-300"
             style={{ width: `${Math.max(0, (health / maxHealth) * 100)}%` }}
+          />
+        </div>
+
+        {/* Ammo Bar Component */}
+        <div className="flex justify-between items-baseline mb-0.5">
+          <span className="text-[10px] font-bold text-yellow-400 capitalize tracking-wider drop-shadow-md">
+            {weaponStats.name}
+          </span>
+          <span className="text-[10px] font-bold text-white drop-shadow-md">
+            {isReloading ? "RELOAD" : `${ammo}/${weaponStats.ammoCapacity}`}
+          </span>
+        </div>
+        <div className="w-full h-1 bg-black/50 border border-white/20 overflow-hidden relative">
+          <div
+            className={`h-full transition-all duration-300 ${isReloading ? "bg-yellow-200 animate-pulse" : "bg-yellow-400"}`}
+            style={{ width: `${Math.max(0, (ammo / weaponStats.ammoCapacity) * 100)}%` }}
           />
         </div>
       </div>
