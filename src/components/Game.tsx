@@ -18,6 +18,22 @@ const SPEED = 8;
 const MAX_ACTIVE_BULLETS = 70;
 const MAX_PARTICLES = 250;
 
+// Reusable vectors for high-performance useFrame loop (avoids GC pauses)
+const _cameraOffset = new Vector3(15, 20, 15);
+const _forward = new Vector3();
+const _right = new Vector3();
+const _moveDir = new Vector3();
+const _fireDir = new Vector3();
+const _rightVec = new Vector3();
+const _chestOffset = new Vector3(0, 0.9, 0);
+const _firePosRight = new Vector3();
+const _firePosLeft = new Vector3();
+const _npcDir = new Vector3();
+const _npcFireDir = new Vector3();
+const _npcFirePos = new Vector3();
+const _cameraTarget = new Vector3();
+const _tmpVec = new Vector3();
+
 // High-performance shared synthesizers using cached AudioContext & pre-generated noise buffer
 let sharedAudioCtx: AudioContext | null = null;
 let sharedNoiseBuffer: AudioBuffer | null = null;
@@ -272,15 +288,14 @@ export function GameScene() {
       const p = particlePoolRef.current[pIdx];
 
       // Spawn slightly elevated at torso height
-      p.position
-        .copy(targetPos)
-        .add(new Vector3(0, 0.5 + Math.random() * 0.8, 0));
+      _tmpVec.set(0, 0.5 + Math.random() * 0.8, 0);
+      p.position.copy(targetPos).add(_tmpVec);
 
       // Blow back in bullet trajectory + vertical burst + dispersion spray
-      const blowback = shooterDir.clone().normalize();
+      _tmpVec.copy(shooterDir).normalize();
       if (type === "convert") {
         // Spherical burst for conversion
-        blowback
+        _tmpVec
           .set(
             (Math.random() - 0.5) * 2,
             (Math.random() - 0.5) * 2,
@@ -288,17 +303,17 @@ export function GameScene() {
           )
           .normalize();
       } else {
-        blowback.x += (Math.random() - 0.5) * 1.5;
-        blowback.y += Math.random() * 1.2 + 0.2;
-        blowback.z += (Math.random() - 0.5) * 1.5;
-        blowback.normalize();
+        _tmpVec.x += (Math.random() - 0.5) * 1.5;
+        _tmpVec.y += Math.random() * 1.2 + 0.2;
+        _tmpVec.z += (Math.random() - 0.5) * 1.5;
+        _tmpVec.normalize();
       }
 
       const speed =
         type === "convert"
           ? 6.0 + Math.random() * 8.0
           : 4.5 + Math.random() * 5.0;
-      p.velocity.copy(blowback).multiplyScalar(speed);
+      p.velocity.copy(_tmpVec).multiplyScalar(speed);
 
       p.active = true;
       p.life = 1.0;
@@ -343,22 +358,23 @@ export function GameScene() {
       if (Math.abs(jx) > 0.01 || Math.abs(jy) > 0.01) {
         isMoving = true;
 
-        const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-        right.y = 0;
-        right.normalize();
-        const forward = new Vector3(0, 0, -1).applyQuaternion(
-          camera.quaternion,
-        );
-        forward.y = 0;
-        forward.normalize();
+        _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        _right.y = 0;
+        _right.normalize();
+        _forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        _forward.y = 0;
+        _forward.normalize();
 
-        const moveDir = forward
+        _moveDir
+          .copy(_forward)
           .multiplyScalar(-jy)
-          .add(right.multiplyScalar(jx))
+          .add(_right.multiplyScalar(jx))
           .normalize();
 
         // Update position
-        playerPos.current.add(moveDir.clone().multiplyScalar(SPEED * delta));
+        playerPos.current.add(
+          _cameraTarget.copy(_moveDir).multiplyScalar(SPEED * delta),
+        );
 
         // Clamp to boundary
         playerPos.current.x = MathUtils.clamp(
@@ -390,23 +406,20 @@ export function GameScene() {
           const { shootVector } = useGameStore.getState();
           // If we have a shoot vector with significant length, point in that direction
           if (shootVector.x !== 0 || shootVector.y !== 0) {
-            const right = new Vector3(1, 0, 0).applyQuaternion(
-              camera.quaternion,
-            );
-            right.y = 0;
-            right.normalize();
-            const forward = new Vector3(0, 0, -1).applyQuaternion(
-              camera.quaternion,
-            );
-            forward.y = 0;
-            forward.normalize();
-            const shootDir = forward
+            _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+            _right.y = 0;
+            _right.normalize();
+            _forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+            _forward.y = 0;
+            _forward.normalize();
+            _fireDir
+              .copy(_forward)
               .multiplyScalar(-shootVector.y)
-              .add(right.multiplyScalar(shootVector.x))
+              .add(_right.multiplyScalar(shootVector.x))
               .normalize();
-            playerRef.current.rotation.y = Math.atan2(shootDir.x, shootDir.z);
+            playerRef.current.rotation.y = Math.atan2(_fireDir.x, _fireDir.z);
           } else {
-            const targetRot = Math.atan2(moveDir.x, moveDir.z);
+            const targetRot = Math.atan2(_moveDir.x, _moveDir.z);
             playerRef.current.rotation.y = targetRot;
           }
         }
@@ -416,21 +429,18 @@ export function GameScene() {
           // Even when not moving, we might be aiming!
           const { shootVector } = useGameStore.getState();
           if (shootVector.x !== 0 || shootVector.y !== 0) {
-            const right = new Vector3(1, 0, 0).applyQuaternion(
-              camera.quaternion,
-            );
-            right.y = 0;
-            right.normalize();
-            const forward = new Vector3(0, 0, -1).applyQuaternion(
-              camera.quaternion,
-            );
-            forward.y = 0;
-            forward.normalize();
-            const shootDir = forward
+            _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+            _right.y = 0;
+            _right.normalize();
+            _forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+            _forward.y = 0;
+            _forward.normalize();
+            _fireDir
+              .copy(_forward)
               .multiplyScalar(-shootVector.y)
-              .add(right.multiplyScalar(shootVector.x))
+              .add(_right.multiplyScalar(shootVector.x))
               .normalize();
-            playerRef.current.rotation.y = Math.atan2(shootDir.x, shootDir.z);
+            playerRef.current.rotation.y = Math.atan2(_fireDir.x, _fireDir.z);
           }
         }
       }
@@ -439,8 +449,10 @@ export function GameScene() {
     if (playerMoving !== isMoving) setPlayerMoving(isMoving);
 
     // Camera follow (isometric offset)
-    const cameraOffset = new Vector3(15, 20, 15);
-    camera.position.lerp(playerPos.current.clone().add(cameraOffset), 0.1);
+    camera.position.lerp(
+      _cameraTarget.copy(playerPos.current).add(_cameraOffset),
+      0.1,
+    );
     camera.lookAt(playerPos.current);
 
     // Rate-limited Pistol shooting
@@ -455,28 +467,24 @@ export function GameScene() {
 
       // Fire gun facing direction
       const playerRot = playerRef.current?.rotation.y || 0;
-      const fireDir = new Vector3(
-        Math.sin(playerRot),
-        0,
-        Math.cos(playerRot),
-      ).normalize();
+      _fireDir.set(Math.sin(playerRot), 0, Math.cos(playerRot)).normalize();
 
-      const rightVec = new Vector3(fireDir.z, 0, -fireDir.x);
+      _rightVec.set(_fireDir.z, 0, -_fireDir.x);
 
       // We need to spawn two bullets for dual-wielding!
       // Right gun offset
-      const firePosRight = playerPos.current
-        .clone()
-        .add(new Vector3(0, 0.9, 0)) // chest height
-        .addScaledVector(rightVec, 0.3) // pushed to right shoulder
-        .addScaledVector(fireDir, 0.65); // pushed forward
+      _firePosRight
+        .copy(playerPos.current)
+        .add(_chestOffset) // chest height
+        .addScaledVector(_rightVec, 0.3) // pushed to right shoulder
+        .addScaledVector(_fireDir, 0.65); // pushed forward
 
       // Left gun offset
-      const firePosLeft = playerPos.current
-        .clone()
-        .add(new Vector3(0, 0.9, 0))
-        .addScaledVector(rightVec, -0.3) // pushed to left shoulder
-        .addScaledVector(fireDir, 0.65);
+      _firePosLeft
+        .copy(playerPos.current)
+        .add(_chestOffset)
+        .addScaledVector(_rightVec, -0.3) // pushed to left shoulder
+        .addScaledVector(_fireDir, 0.65);
 
       const emitBullet = (pos: Vector3, dir: Vector3) => {
         const idx = nextBulletIdxRef.current;
@@ -495,8 +503,8 @@ export function GameScene() {
         nextBulletIdxRef.current = (idx + 1) % MAX_ACTIVE_BULLETS;
       };
 
-      emitBullet(firePosRight, fireDir);
-      emitBullet(firePosLeft, fireDir);
+      emitBullet(_firePosRight, _fireDir);
+      emitBullet(_firePosLeft, _fireDir);
 
       // Play brief high-intensity muzzle flash blast animation
       setMuzzleFlash(true);
@@ -707,27 +715,30 @@ export function GameScene() {
 
       if (isNpcAlreadyConverted) {
         // Converted NPC behavior: seek unconverted and convert!
-        let closestTargetDist = 9999;
+        let closestTargetDistSq = 999999;
         let closestTargetPos: Vector3 | null = null;
 
         for (let i = 0; i < npcs.length; i++) {
           const other = npcs[i];
           if (!other.converted && !convertedMap[other.id] && !other.dead) {
-            const d = npc.position.distanceTo(other.position);
-            if (d < closestTargetDist) {
-              closestTargetDist = d;
+            const dSq = npc.position.distanceToSquared(other.position);
+            if (dSq < closestTargetDistSq) {
+              closestTargetDistSq = dSq;
               closestTargetPos = other.position;
             }
           }
         }
 
         if (closestTargetPos && useGameStore.getState().status === "playing") {
-          const dir = closestTargetPos.clone().sub(npc.position).normalize();
+          _npcDir.copy(closestTargetPos).sub(npc.position).normalize();
 
-          if (closestTargetDist > 8) {
-            npc.position.add(dir.multiplyScalar(SPEED * 0.8 * delta));
+          if (closestTargetDistSq > 64) {
+            // 8 * 8
+            npc.position.add(
+              _tmpVec.copy(_npcDir).multiplyScalar(SPEED * 0.8 * delta),
+            );
           }
-          npcGrp.rotation.y = Math.atan2(dir.x, dir.z);
+          npcGrp.rotation.y = Math.atan2(_npcDir.x, _npcDir.z);
 
           // Shoot logic
           if (time - npc.lastShootTime > 1.5) {
@@ -735,26 +746,26 @@ export function GameScene() {
             npc.isShooting = true;
             playShootSound();
 
-            const fireDir = dir.clone();
-            fireDir.x += (Math.random() - 0.5) * 0.1;
-            fireDir.z += (Math.random() - 0.5) * 0.1;
-            fireDir.normalize();
+            _npcFireDir.copy(_npcDir);
+            _npcFireDir.x += (Math.random() - 0.5) * 0.1;
+            _npcFireDir.z += (Math.random() - 0.5) * 0.1;
+            _npcFireDir.normalize();
 
-            const firePos = npc.position
-              .clone()
-              .add(new Vector3(0, 0.9, 0))
-              .addScaledVector(fireDir, 0.65);
+            _npcFirePos
+              .copy(npc.position)
+              .add(_chestOffset)
+              .addScaledVector(_npcFireDir, 0.65);
 
             const idx = nextBulletIdxRef.current;
             const bulletToActivate = bulletPoolRef.current[idx];
 
-            bulletToActivate.position.copy(firePos);
-            bulletToActivate.direction.copy(fireDir);
+            bulletToActivate.position.copy(_npcFirePos);
+            bulletToActivate.direction.copy(_npcFireDir);
             bulletToActivate.active = true;
 
             const mesh = bulletMeshesPoolRef.current[idx];
             if (mesh) {
-              mesh.position.copy(firePos);
+              mesh.position.copy(_npcFirePos);
               mesh.rotation.y = npcGrp.rotation.y;
               mesh.visible = true;
             }
@@ -775,14 +786,16 @@ export function GameScene() {
               .normalize()
               .multiplyScalar(2 + Math.random() * 2);
           }
-          npc.position.add(npc.velocity.clone().multiplyScalar(delta));
+          npc.position.add(_tmpVec.copy(npc.velocity).multiplyScalar(delta));
           npcGrp.rotation.y = Math.atan2(npc.velocity.x, npc.velocity.z);
         }
 
         resolveBuildingCollisions(npc.position, 0.4);
       } else {
         // Unconverted NPC behavior: attack player or converted NPCs
-        let closestTargetDist = npc.position.distanceTo(playerPos.current);
+        let closestTargetDistSq = npc.position.distanceToSquared(
+          playerPos.current,
+        );
         let closestTargetPos = playerPos.current;
 
         for (let i = 0; i < npcs.length; i++) {
@@ -792,26 +805,27 @@ export function GameScene() {
             (other.converted || convertedMap[other.id]) &&
             !other.dead
           ) {
-            const d = npc.position.distanceTo(other.position);
-            if (d < closestTargetDist) {
-              closestTargetDist = d;
+            const dSq = npc.position.distanceToSquared(other.position);
+            if (dSq < closestTargetDistSq) {
+              closestTargetDistSq = dSq;
               closestTargetPos = other.position;
             }
           }
         }
 
-        const distToTarget = closestTargetDist;
-        const canSeeTarget = distToTarget < 18;
+        const canSeeTarget = closestTargetDistSq < 18 * 18;
 
         npc.timer -= delta;
 
         if (canSeeTarget && useGameStore.getState().status === "playing") {
-          const dir = closestTargetPos.clone().sub(npc.position).normalize();
+          _npcDir.copy(closestTargetPos).sub(npc.position).normalize();
 
-          if (closestTargetDist > 8) {
-            npc.position.add(dir.multiplyScalar(SPEED * 0.6 * delta));
+          if (closestTargetDistSq > 64) {
+            npc.position.add(
+              _tmpVec.copy(_npcDir).multiplyScalar(SPEED * 0.6 * delta),
+            );
           }
-          npcGrp.rotation.y = Math.atan2(dir.x, dir.z);
+          npcGrp.rotation.y = Math.atan2(_npcDir.x, _npcDir.z);
 
           // Shoot logic
           if (time - npc.lastShootTime > 3.0) {
@@ -819,26 +833,26 @@ export function GameScene() {
             npc.isShooting = true;
             playShootSound();
 
-            const fireDir = dir.clone();
-            fireDir.x += (Math.random() - 0.5) * 0.5;
-            fireDir.z += (Math.random() - 0.5) * 0.5;
-            fireDir.normalize();
+            _npcFireDir.copy(_npcDir);
+            _npcFireDir.x += (Math.random() - 0.5) * 0.5;
+            _npcFireDir.z += (Math.random() - 0.5) * 0.5;
+            _npcFireDir.normalize();
 
-            const firePos = npc.position
-              .clone()
-              .add(new Vector3(0, 0.9, 0))
-              .addScaledVector(fireDir, 0.65);
+            _npcFirePos
+              .copy(npc.position)
+              .add(_chestOffset)
+              .addScaledVector(_npcFireDir, 0.65);
 
             const idx = nextEnemyBulletIdxRef.current;
             const bulletToActivate = enemyBulletPoolRef.current[idx];
 
-            bulletToActivate.position.copy(firePos);
-            bulletToActivate.direction.copy(fireDir);
+            bulletToActivate.position.copy(_npcFirePos);
+            bulletToActivate.direction.copy(_npcFireDir);
             bulletToActivate.active = true;
 
             const mesh = enemyBulletMeshesRef.current[idx];
             if (mesh) {
-              mesh.position.copy(firePos);
+              mesh.position.copy(_npcFirePos);
               mesh.rotation.y = npcGrp.rotation.y;
               mesh.visible = true;
             }
@@ -859,7 +873,7 @@ export function GameScene() {
               .multiplyScalar(2 + Math.random() * 2);
           }
 
-          npc.position.add(npc.velocity.clone().multiplyScalar(delta));
+          npc.position.add(_tmpVec.copy(npc.velocity).multiplyScalar(delta));
           npcGrp.rotation.y = Math.atan2(npc.velocity.x, npc.velocity.z);
         }
 

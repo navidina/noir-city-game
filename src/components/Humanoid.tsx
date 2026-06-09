@@ -12,6 +12,8 @@ interface HumanoidProps {
   dualWield?: boolean;
 }
 
+const _worldPos = new Vector3();
+
 export function Humanoid({
   position = [0, 0, 0],
   color,
@@ -80,15 +82,14 @@ export function Humanoid({
     // Auto-detect movement by tracking actual world position delta
     let actuallyMoving = isMoving;
     if (rootRef.current) {
-      const worldPos = new Vector3();
-      rootRef.current.getWorldPosition(worldPos);
+      rootRef.current.getWorldPosition(_worldPos);
       if (lastPosRef.current) {
-        const dx = worldPos.x - lastPosRef.current[0];
-        const dz = worldPos.z - lastPosRef.current[2];
+        const dx = _worldPos.x - lastPosRef.current[0];
+        const dz = _worldPos.z - lastPosRef.current[2];
         const distSq = dx * dx + dz * dz;
         actuallyMoving = distSq > 0.0001; // Moving somewhat
       }
-      lastPosRef.current = [worldPos.x, worldPos.y, worldPos.z];
+      lastPosRef.current = [_worldPos.x, _worldPos.y, _worldPos.z];
     }
 
     if (actuallyMoving && !isShooting) {
