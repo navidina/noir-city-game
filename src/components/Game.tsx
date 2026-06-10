@@ -10,6 +10,7 @@ import {
   Color,
 } from "three";
 import { useGameStore, WEAPONS, WeaponType } from "../store";
+import { pickUpgrades } from "../upgrades";
 import { Humanoid } from "./Humanoid";
 import { City } from "./City";
 import { resolveBuildingCollisions, BUILDINGS } from "../utils/buildings";
@@ -276,6 +277,8 @@ export function GameScene() {
   const { wave, setWave, setTotalNPCs } = useGameStore();
   const status = useGameStore((s) => s.status);
   const [intermission, setIntermission] = useState(false);
+  // Sequences the wave-clear flow: banner -> upgrade pick -> next wave spawn
+  const intermissionPhaseRef = useRef<"idle" | "banner" | "upgrade">("idle");
 
   const spawnWave = (currentWave: number) => {
     const spawnCount = 10 + currentWave * 5;
@@ -364,21 +367,42 @@ export function GameScene() {
       }, 1800);
       spawnWave(1);
     } else if (aliveEnemies === 0) {
-      // Wave cleared: short intermission with an announcement before the next one
-      const nextWave = wave + 1;
+      // Wave cleared: short banner, then the player picks 1 of 3 upgrades
       setIntermission(true);
+      intermissionPhaseRef.current = "banner";
       useGameStore.getState().setBanner("WAVE CLEARED");
       setTimeout(() => {
-        useGameStore.getState().setBanner(`WAVE ${nextWave}`);
-      }, 1500);
-      setTimeout(() => {
-        useGameStore.getState().setBanner(null);
-        setWave(nextWave);
-        spawnWave(nextWave);
-        setIntermission(false);
-      }, 3000);
+        const s = useGameStore.getState();
+        if (s.status !== "playing" && s.status !== "paused") return;
+        s.setBanner(null);
+        intermissionPhaseRef.current = "upgrade";
+        s.setUpgradeChoices(pickUpgrades(3));
+        s.setStatus("upgrading");
+      }, 1400);
     }
   }, [npcs, convertedMap, deadMap, wave, status, intermission, setWave, setTotalNPCs]);
+
+  // Resume after the player picked an upgrade: announce and spawn the next wave
+  useEffect(() => {
+    if (
+      intermission &&
+      status === "playing" &&
+      intermissionPhaseRef.current === "upgrade" &&
+      !useGameStore.getState().upgradeChoices
+    ) {
+      intermissionPhaseRef.current = "idle";
+      const nextWave = wave + 1;
+      setWave(nextWave);
+      const label = `WAVE ${nextWave}`;
+      useGameStore.getState().setBanner(label);
+      setTimeout(() => {
+        if (useGameStore.getState().banner === label)
+          useGameStore.getState().setBanner(null);
+      }, 1800);
+      spawnWave(nextWave);
+      setIntermission(false);
+    }
+  }, [status, intermission, wave, setWave]);
 
   // High-performance bullet pool
   const bulletMeshesPoolRef = useRef<(Mesh | null)[]>([]);
@@ -387,18 +411,24 @@ export function GameScene() {
       position: Vector3;
       direction: Vector3;
       active: boolean;
+      damage: number;
     }[]
   >(
     Array.from({ length: MAX_ACTIVE_BULLETS }, () => ({
       position: new Vector3(),
       direction: new Vector3(),
       active: false,
+      damage: 1,
     })),
   );
   const nextBulletIdxRef = useRef(0);
   const lastFireTimeRef = useRef(0);
   const comboRef = useRef(0);
   const lastKillTimeRef = useRef(-10);
+  const dashUntilRef = useRef(-1);
+  const dashReadyRef = useRef(0);
+  const dashDirRef = useRef(new Vector3(0, 0, 1));
+  const pickupGroupRefs = useRef<Record<number, Group | null>>({});
 
   // Enemy bullet pool
   const MAX_ENEMY_BULLETS = 60;
@@ -556,8 +586,10 @@ export function GameScene() {
           .add(_right.multiplyScalar(jx))
           .normalize();
 
-        // Increase speed if running
-        const currentSpeed = isRunning ? SPEED * 1.6 : SPEED * joystickIntensity * 0.8;
+        // Increase speed if running; scaled by upgrade stats
+        const currentSpeed =
+          (isRunning ? SPEED * 1.6 : SPEED * joystickIntensity * 0.8) *
+          useGameStore.getState().stats.speedMult;
 
         // Update position
         playerPos.current.add(
@@ -578,55 +610,6 @@ export function GameScene() {
 
         // Resolve building collisions
         resolveBuildingCollisions(playerPos.current, 0.4);
-
-        // Check pickup collisions
-        pickupsRef.current.forEach(p => {
-          if (p.active && playerPos.current.distanceToSquared(p.position) < 2.0 * 2.0) {
-            p.active = false;
-            
-            if (p.type === "health") {
-              const state = useGameStore.getState();
-              state.setHealth(Math.min(state.maxHealth, state.health + 30));
-              showMsg(p.position, "+30 HP", "#ffffff");
-            } else if (p.type === "weapon_tommy") {
-              const state = useGameStore.getState();
-              state.setWeapon("tommy");
-              state.setAmmo(WEAPONS.tommy.ammoCapacity);
-              state.setReserveAmmo(WEAPONS.tommy.reserve);
-              state.setReloading(false);
-              showMsg(p.position, "TOMMY GUN", "#ffaa00");
-            } else if (p.type === "weapon_shotgun") {
-              const state = useGameStore.getState();
-              state.setWeapon("shotgun");
-              state.setAmmo(WEAPONS.shotgun.ammoCapacity);
-              state.setReserveAmmo(WEAPONS.shotgun.reserve);
-              state.setReloading(false);
-              showMsg(p.position, "SHOTGUN", "#ff5500");
-            } else if (p.type === "recruit" && p.targetNpcId !== undefined) {
-              const targetNpc = npcs.find(n => n.id === p.targetNpcId);
-              if (targetNpc) {
-                targetNpc.dead = false;
-                targetNpc.converted = true;
-                targetNpc.hp = targetNpc.maxHp;
-                setDeadMap((prev) => ({ ...prev, [targetNpc.id]: false }));
-                setConvertedMap((prev) => ({ ...prev, [targetNpc.id]: true }));
-                setNpcHitsMap((prev) => {
-                  const copy = { ...prev };
-                  delete copy[targetNpc.id];
-                  return copy;
-                });
-                playConvertSound();
-                triggerHitParticles(targetNpc.position, new Vector3(0, 1, 0), "convert");
-                showMsg(targetNpc.position, "+1 RECRUIT", "#00ffaa");
-                
-                const currentScore = useGameStore.getState().score;
-                setScore(currentScore + 1);
-              }
-            }
-
-            setPickups(prev => prev.map(old => old.id === p.id ? { ...old, active: false } : old));
-          }
-        });
 
         // Update store for camera/UI
         useGameStore
@@ -683,6 +666,123 @@ export function GameScene() {
       }
     }
 
+    // Dash: short burst toward movement (or facing) direction, with i-frames
+    const tNow = state.clock.getElapsedTime();
+    {
+      const gs = useGameStore.getState();
+      if (gs.dashRequested) {
+        gs.setDashRequested(false);
+        if (tNow >= dashReadyRef.current) {
+          dashUntilRef.current = tNow + 0.18;
+          dashReadyRef.current = tNow + gs.stats.dashCooldown;
+          gs.setDashReadyAt(Date.now() + gs.stats.dashCooldown * 1000);
+          if (isMoving) {
+            dashDirRef.current.copy(_moveDir);
+          } else {
+            const rot = playerRef.current?.rotation.y || 0;
+            dashDirRef.current.set(Math.sin(rot), 0, Math.cos(rot));
+          }
+          cameraShakeRef.current = Math.max(cameraShakeRef.current, 0.15);
+        }
+      }
+      if (tNow < dashUntilRef.current) {
+        playerPos.current.addScaledVector(
+          dashDirRef.current,
+          SPEED * 3.2 * delta,
+        );
+        playerPos.current.x = MathUtils.clamp(
+          playerPos.current.x,
+          -BOUNDARY,
+          BOUNDARY,
+        );
+        playerPos.current.z = MathUtils.clamp(
+          playerPos.current.z,
+          -BOUNDARY,
+          BOUNDARY,
+        );
+        resolveBuildingCollisions(playerPos.current, 0.4);
+        if (playerRef.current)
+          playerRef.current.position.copy(playerPos.current);
+        gs.setPlayerPosition([
+          playerPos.current.x,
+          playerPos.current.y,
+          playerPos.current.z,
+        ]);
+        isMoving = true;
+        isRunning = true;
+      }
+    }
+
+    // Pickup magnet + collection (works even while standing still)
+    {
+      const magnetR = useGameStore.getState().stats.magnetRadius;
+      pickupsRef.current.forEach((p) => {
+        if (!p.active) return;
+
+        const dSq = playerPos.current.distanceToSquared(p.position);
+        if (dSq < magnetR * magnetR && dSq > 0.04) {
+          _tmpVec.copy(playerPos.current).sub(p.position).normalize();
+          p.position.addScaledVector(_tmpVec, 9 * delta);
+          const grp = pickupGroupRefs.current[p.id];
+          if (grp) grp.position.set(p.position.x, 0.5, p.position.z);
+        }
+
+        if (dSq < 2.0 * 2.0) {
+          p.active = false;
+
+          if (p.type === "health") {
+            const state = useGameStore.getState();
+            state.setHealth(Math.min(state.maxHealth, state.health + 30));
+            showMsg(p.position, "+30 HP", "#ffffff");
+          } else if (p.type === "weapon_tommy") {
+            const state = useGameStore.getState();
+            state.setWeapon("tommy");
+            state.setAmmo(WEAPONS.tommy.ammoCapacity);
+            state.setReserveAmmo(WEAPONS.tommy.reserve);
+            state.setReloading(false);
+            showMsg(p.position, "TOMMY GUN", "#ffaa00");
+          } else if (p.type === "weapon_shotgun") {
+            const state = useGameStore.getState();
+            state.setWeapon("shotgun");
+            state.setAmmo(WEAPONS.shotgun.ammoCapacity);
+            state.setReserveAmmo(WEAPONS.shotgun.reserve);
+            state.setReloading(false);
+            showMsg(p.position, "SHOTGUN", "#ff5500");
+          } else if (p.type === "recruit" && p.targetNpcId !== undefined) {
+            const targetNpc = npcs.find((n) => n.id === p.targetNpcId);
+            if (targetNpc) {
+              targetNpc.dead = false;
+              targetNpc.converted = true;
+              targetNpc.hp = targetNpc.maxHp;
+              setDeadMap((prev) => ({ ...prev, [targetNpc.id]: false }));
+              setConvertedMap((prev) => ({ ...prev, [targetNpc.id]: true }));
+              setNpcHitsMap((prev) => {
+                const copy = { ...prev };
+                delete copy[targetNpc.id];
+                return copy;
+              });
+              playConvertSound();
+              triggerHitParticles(
+                targetNpc.position,
+                new Vector3(0, 1, 0),
+                "convert",
+              );
+              showMsg(targetNpc.position, "+1 RECRUIT", "#00ffaa");
+
+              const currentScore = useGameStore.getState().score;
+              setScore(currentScore + 1);
+            }
+          }
+
+          setPickups((prev) =>
+            prev.map((old) =>
+              old.id === p.id ? { ...old, active: false } : old,
+            ),
+          );
+        }
+      });
+    }
+
     if (playerMoving !== isMoving) setPlayerMoving(isMoving);
     if (playerRunning !== isRunning) setPlayerRunning(isRunning);
 
@@ -718,7 +818,7 @@ export function GameScene() {
           s.setReserveAmmo(s.reserveAmmo - take);
         }
         s.setReloading(false);
-      }, currentWeaponStats.reloadTime * 1000);
+      }, (currentWeaponStats.reloadTime * 1000) / gState.stats.reloadMult);
     };
 
     // Manual reload request (R key / reload button)
@@ -750,7 +850,8 @@ export function GameScene() {
       isShooting &&
       !gState.isReloading &&
       gState.ammo > 0 &&
-      time - lastFireTimeRef.current > currentWeaponStats.fireDelay
+      time - lastFireTimeRef.current >
+        currentWeaponStats.fireDelay / gState.stats.fireRateMult
     ) {
       lastFireTimeRef.current = time;
       
@@ -791,12 +892,15 @@ export function GameScene() {
         .addScaledVector(_rightVec, -0.28) // pushed to left shoulder
         .addScaledVector(_fireDir, 0.89); // pushed forward
 
+      const playerBulletDamage =
+        currentWeaponStats.damage * gState.stats.damageMult;
       const emitBullet = (pos: Vector3, dir: Vector3) => {
         const idx = nextBulletIdxRef.current;
         const bulletToActivate = bulletPoolRef.current[idx];
         bulletToActivate.position.copy(pos);
         bulletToActivate.direction.copy(dir);
         bulletToActivate.active = true;
+        bulletToActivate.damage = playerBulletDamage;
 
         const mesh = bulletMeshesPoolRef.current[idx];
         if (mesh) {
@@ -876,8 +980,15 @@ export function GameScene() {
             bullet.active = false;
             if (mesh) mesh.visible = false;
 
+            // Crit roll: doubled damage with a callout
+            let dmg = bullet.damage || 1;
+            if (Math.random() < useGameStore.getState().stats.critChance) {
+              dmg *= 2;
+              showMsg(npc.position, "CRIT!", "#ff8800");
+            }
+
             const prevHits = npcHitsMap[npcId] || 0;
-            const nextHits = prevHits + 1;
+            const nextHits = prevHits + dmg;
 
             if (nextHits >= npc.maxHp) {
               npc.dead = true;
@@ -894,6 +1005,13 @@ export function GameScene() {
               useGameStore.getState().addKill();
               if (comboRef.current >= 2) {
                 showMsg(npc.position, `COMBO x${comboRef.current}`, "#ffdd00");
+              }
+
+              // Blood Contract: heal on kill
+              const ls = useGameStore.getState().stats.lifeSteal;
+              if (ls > 0) {
+                const st = useGameStore.getState();
+                st.setHealth(Math.min(st.maxHealth, st.health + ls));
               }
 
               // Always drop recruit pickup when originally killed
@@ -961,6 +1079,7 @@ export function GameScene() {
         (pos.x - playerPos.current.x) ** 2 + (pos.z - playerPos.current.z) ** 2;
       if (
         useGameStore.getState().status === "playing" &&
+        time >= dashUntilRef.current && // dashing grants i-frames
         distSqToPlayer < 1.1 * 1.1
       ) {
         bullet.active = false;
@@ -1134,6 +1253,7 @@ export function GameScene() {
                 bulletToActivate.position.copy(_npcFirePos);
                 bulletToActivate.direction.copy(_npcFireDir);
                 bulletToActivate.active = true;
+                bulletToActivate.damage = wStats.damage;
 
                 const mesh = bulletMeshesPoolRef.current[idx];
                 if (mesh) {
@@ -1297,7 +1417,7 @@ export function GameScene() {
           } else if (closestTargetDistSq <= stopDist && time - npc.lastShootTime > 1.0) {
             // Melee attack players or allies
             npc.lastShootTime = time;
-            if (closestTargetId === "player") {
+            if (closestTargetId === "player" && time >= dashUntilRef.current) {
               triggerHitParticles(playerPos.current, _npcDir, "blood");
               playHitSound();
               cameraShakeRef.current = 1.0;
@@ -1565,7 +1685,11 @@ export function GameScene() {
         
         if (p.type === "health") {
           return (
-            <group key={p.id} position={[p.position.x, 0.5, p.position.z]}>
+            <group
+              key={p.id}
+              ref={(el) => (pickupGroupRefs.current[p.id] = el)}
+              position={[p.position.x, 0.5, p.position.z]}
+            >
               <mesh
                 ref={(el) => {
                   if (el) {
@@ -1595,7 +1719,11 @@ export function GameScene() {
           const isTommy = p.type === "weapon_tommy";
           const color = isTommy ? "#ffaa00" : "#ff5500";
           return (
-             <group key={p.id} position={[p.position.x, 0.5, p.position.z]}>
+             <group
+              key={p.id}
+              ref={(el) => (pickupGroupRefs.current[p.id] = el)}
+              position={[p.position.x, 0.5, p.position.z]}
+            >
                <group
                 ref={(el) => {
                   if (el) {
@@ -1639,7 +1767,11 @@ export function GameScene() {
 
         // Recruit type
         return (
-          <group key={p.id} position={[p.position.x, 0.5, p.position.z]}>
+          <group
+            key={p.id}
+            ref={(el) => (pickupGroupRefs.current[p.id] = el)}
+            position={[p.position.x, 0.5, p.position.z]}
+          >
             <mesh
               ref={(el) => {
                 if (el) {

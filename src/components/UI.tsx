@@ -80,6 +80,82 @@ function TopLeftHUD() {
   );
 }
 
+function UpgradeScreen() {
+  const choices = useGameStore((s) => s.upgradeChoices);
+  const chooseUpgrade = useGameStore((s) => s.chooseUpgrade);
+  const wave = useGameStore((s) => s.wave);
+
+  if (!choices) return null;
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/85 backdrop-blur-md pointer-events-auto z-50">
+      <div className="text-center p-6 max-w-[340px] w-full">
+        <div className="h-[1px] w-28 bg-white/25 mx-auto mb-5"></div>
+        <h2 className="text-xl font-serif italic text-white tracking-[0.2em] uppercase mb-1">
+          Wave {wave} Cleared
+        </h2>
+        <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-400 mb-6 font-mono">
+          Assimilation protocol — choose an upgrade
+        </p>
+
+        <div className="flex flex-col gap-3">
+          {choices.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => chooseUpgrade(u.id)}
+              className="group w-full text-left px-5 py-4 border border-white/20 bg-zinc-950/90 hover:bg-white hover:text-black transition-all cursor-pointer flex items-center gap-4"
+            >
+              <span className="text-2xl font-serif text-yellow-400 group-hover:text-black w-8 text-center shrink-0">
+                {u.icon}
+              </span>
+              <span>
+                <span className="block text-[12px] uppercase tracking-[0.2em] font-bold text-white group-hover:text-black">
+                  {u.name}
+                </span>
+                <span className="block text-[9px] uppercase tracking-[0.15em] text-zinc-400 group-hover:text-zinc-700 font-mono mt-1">
+                  {u.desc}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashButton() {
+  const dashReadyAt = useGameStore((s) => s.dashReadyAt);
+  const setDashRequested = useGameStore((s) => s.setDashRequested);
+  const [, tick] = useState(0);
+
+  // Re-render periodically while cooling down so the indicator refreshes
+  useEffect(() => {
+    if (dashReadyAt <= Date.now()) return;
+    const i = setInterval(() => tick((x) => x + 1), 100);
+    return () => clearInterval(i);
+  }, [dashReadyAt]);
+
+  const ready = Date.now() >= dashReadyAt;
+
+  return (
+    <button
+      onTouchStart={(e) => {
+        e.preventDefault();
+        setDashRequested(true);
+      }}
+      onClick={() => setDashRequested(true)}
+      className={`h-14 w-14 mb-1 backdrop-blur-md border rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all focus:outline-none text-[10px] font-mono tracking-widest ${
+        ready
+          ? "bg-white/20 border-white/50 text-white"
+          : "bg-black/40 border-white/10 text-white/30"
+      }`}
+    >
+      DASH
+    </button>
+  );
+}
+
 function GameOverScreen() {
   const { wave, kills, score, restart } = useGameStore();
   const [best, setBest] = useState<{ wave: number; kills: number }>({
@@ -162,6 +238,10 @@ function StartMenu() {
           <div className="flex justify-between gap-4">
             <span className="text-white/80">Aim + Fire</span>
             <span>Right Stick / Arrows</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-white/80">Dash</span>
+            <span>Shift / Dash Button</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-white/80">Reload</span>
@@ -436,6 +516,9 @@ export function UI() {
       if (e.key === "r" || e.key === "R") {
         useGameStore.getState().setReloadRequested(true);
       }
+      if (e.key === "Shift") {
+        useGameStore.getState().setDashRequested(true);
+      }
       if (e.key === "Escape" || e.key === "p" || e.key === "P") {
         const st = useGameStore.getState();
         if (st.status === "playing") st.setStatus("paused");
@@ -535,6 +618,9 @@ export function UI() {
       {/* START MENU */}
       {status === "menu" && <StartMenu />}
 
+      {/* UPGRADE SELECTION */}
+      {status === "upgrading" && <UpgradeScreen />}
+
       {/* 2. GAME COMPLETION SCREEN OVERLAY */}
       {status === "won" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/85 backdrop-blur-md pointer-events-auto z-50">
@@ -630,14 +716,17 @@ export function UI() {
             />
           </div>
 
-          {/* Reload button for touch play */}
-          <button
-            onTouchStart={() => useGameStore.getState().setReloadRequested(true)}
-            onClick={() => useGameStore.getState().setReloadRequested(true)}
-            className="h-11 w-11 mb-1 bg-black/40 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all focus:outline-none text-[9px] font-mono text-white tracking-widest"
-          >
-            R
-          </button>
+          {/* Center action buttons for touch play */}
+          <div className="flex items-end gap-3">
+            <button
+              onTouchStart={() => useGameStore.getState().setReloadRequested(true)}
+              onClick={() => useGameStore.getState().setReloadRequested(true)}
+              className="h-11 w-11 mb-1 bg-black/40 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all focus:outline-none text-[9px] font-mono text-white tracking-widest"
+            >
+              R
+            </button>
+            <DashButton />
+          </div>
 
           {/* Aiming / Shooting Joystick Base */}
           <div

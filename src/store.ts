@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import { DEFAULT_STATS, PlayerStats, UpgradeDef, applyUpgrade } from './upgrades';
 
-export type GameStatus = 'menu' | 'playing' | 'paused' | 'won' | 'lost';
+export type GameStatus = 'menu' | 'playing' | 'paused' | 'upgrading' | 'won' | 'lost';
 export type WeaponType = 'pistol' | 'tommy' | 'shotgun';
 
 export interface WeaponStats {
@@ -43,6 +44,14 @@ export interface GameState {
   bumpDamageFlash: () => void;
   toggleMuted: () => void;
   restart: () => void;
+  stats: PlayerStats;
+  upgradeChoices: UpgradeDef[] | null;
+  setUpgradeChoices: (u: UpgradeDef[] | null) => void;
+  chooseUpgrade: (id: string) => void;
+  dashRequested: boolean;
+  setDashRequested: (d: boolean) => void;
+  dashReadyAt: number; // epoch ms when the dash comes off cooldown
+  setDashReadyAt: (t: number) => void;
   joystickVector: { x: number; y: number };
   setJoystickVector: (v: { x: number; y: number }) => void;
   shootVector: { x: number; y: number };
@@ -86,6 +95,27 @@ export const useGameStore = create<GameState>((set) => ({
   setBanner: (b) => set({ banner: b }),
   bumpDamageFlash: () => set((s) => ({ damageTick: s.damageTick + 1 })),
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
+  stats: DEFAULT_STATS,
+  upgradeChoices: null,
+  setUpgradeChoices: (u) => set({ upgradeChoices: u }),
+  chooseUpgrade: (id) =>
+    set((s) => {
+      const extra: Partial<GameState> = {};
+      if (id === 'maxhp') {
+        extra.maxHealth = s.maxHealth + 25;
+        extra.health = Math.min(s.maxHealth + 25, s.health + 50);
+      }
+      return {
+        ...extra,
+        stats: applyUpgrade(id, s.stats),
+        upgradeChoices: null,
+        status: 'playing',
+      };
+    }),
+  dashRequested: false,
+  setDashRequested: (d) => set({ dashRequested: d }),
+  dashReadyAt: 0,
+  setDashReadyAt: (t) => set({ dashReadyAt: t }),
   restart: () =>
     set((s) => ({
       runId: s.runId + 1,
@@ -94,8 +124,13 @@ export const useGameStore = create<GameState>((set) => ({
       wave: 1,
       totalNPCs: 15,
       health: 100,
+      maxHealth: 100,
       kills: 0,
       banner: null,
+      stats: DEFAULT_STATS,
+      upgradeChoices: null,
+      dashRequested: false,
+      dashReadyAt: 0,
       weapon: 'pistol',
       ammo: WEAPONS.pistol.ammoCapacity,
       reserveAmmo: Infinity,
