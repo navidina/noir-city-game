@@ -10,6 +10,7 @@ interface HumanoidProps {
   isShooting: boolean;
   scale?: number;
   hasGun?: boolean;
+  weaponType?: string;
   dualWield?: boolean;
   isReloading?: boolean;
 }
@@ -24,6 +25,7 @@ export function Humanoid({
   isShooting,
   scale = 1,
   hasGun = false,
+  weaponType = 'pistol',
   dualWield = false,
   isReloading = false,
 }: HumanoidProps) {
@@ -359,16 +361,29 @@ export function Humanoid({
       if (hasGun) {
         // Raise aim arm straight forward
         if (rightArmRef.current) {
-          rightArmRef.current.rotation.x = MathUtils.lerp(
-            rightArmRef.current.rotation.x,
-            -Math.PI / 2 + recoilX,
-            0.4,
-          );
-          rightArmRef.current.rotation.z = MathUtils.lerp(
-            rightArmRef.current.rotation.z,
-            -0.1,
-            0.4,
-          );
+          if (weaponType === 'tommy' || weaponType === 'shotgun') {
+            rightArmRef.current.rotation.x = MathUtils.lerp(
+              rightArmRef.current.rotation.x,
+              -Math.PI / 2 + 0.1 + (weaponType === 'shotgun' ? recoilX * 1.5 : recoilX * 0.5),
+              0.4,
+            );
+            rightArmRef.current.rotation.z = MathUtils.lerp(
+              rightArmRef.current.rotation.z,
+              0.15,
+              0.4,
+            );
+          } else {
+            rightArmRef.current.rotation.x = MathUtils.lerp(
+              rightArmRef.current.rotation.x,
+              -Math.PI / 2 + recoilX,
+              0.4,
+            );
+            rightArmRef.current.rotation.z = MathUtils.lerp(
+              rightArmRef.current.rotation.z,
+              -0.1,
+              0.4,
+            );
+          }
         }
         if (rightElbowRef.current)
           rightElbowRef.current.rotation.x = MathUtils.lerp(
@@ -400,7 +415,25 @@ export function Humanoid({
 
       // Guard left hand or shoot
       if (leftArmRef.current) {
-        if (dualWield) {
+        if (weaponType === 'tommy' || weaponType === 'shotgun') {
+          leftArmRef.current.rotation.x = MathUtils.lerp(
+            leftArmRef.current.rotation.x,
+            -Math.PI / 2 + 0.3 + recoilX * 0.8,
+            0.4,
+          );
+          leftArmRef.current.rotation.z = MathUtils.lerp(
+            leftArmRef.current.rotation.z,
+            0.35,
+            0.4,
+          );
+          if (leftElbowRef.current) {
+            leftElbowRef.current.rotation.x = MathUtils.lerp(
+              leftElbowRef.current.rotation.x,
+              -0.4,
+              0.4,
+            );
+          }
+        } else if (dualWield) {
           leftArmRef.current.rotation.x = MathUtils.lerp(
             leftArmRef.current.rotation.x,
             -Math.PI / 2 + recoilX,
@@ -668,8 +701,8 @@ export function Humanoid({
               <boxGeometry args={[0.08, 0.12, 0.08]} />
             </mesh>
 
-            {/* Elegant low poly pistol / Colt Noir style */}
-            {hasGun && (
+            {/* Right Hand Weapons */}
+            {hasGun && (!weaponType || weaponType === 'pistol') && (
               <group position={[0, -0.42, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
                 {/* Barrel / slide */}
                 <mesh
@@ -709,6 +742,56 @@ export function Humanoid({
                   }
                 >
                   <boxGeometry args={[0.01, 0.012, 0.09]} />
+                </mesh>
+              </group>
+            )}
+
+            {hasGun && weaponType === 'tommy' && (
+              <group position={[0, -0.42, 0.12]} rotation={[Math.PI / 2, 0, 0]}>
+                {/* Barrel / Body */}
+                <mesh castShadow material={new MeshStandardMaterial({ color: "#1a1a1a", roughness: 0.4, metalness: 0.8 })}>
+                  <boxGeometry args={[0.045, 0.07, 0.35]} />
+                </mesh>
+                {/* Drum Magazine */}
+                <mesh position={[0, -0.05, -0.02]} rotation={[0, 0, Math.PI / 2]} material={new MeshStandardMaterial({ color: "#111", metalness: 0.9 })}>
+                  <cylinderGeometry args={[0.065, 0.065, 0.055, 16]} />
+                </mesh>
+                {/* Grip / handle */}
+                <mesh position={[0, -0.06, -0.12]} rotation={[-0.3, 0, 0]} material={new MeshStandardMaterial({ color: "#2d1606", roughness: 0.9 })}>
+                  <boxGeometry args={[0.035, 0.1, 0.04]} />
+                </mesh>
+                {/* Front grip / wood */}
+                <mesh position={[0, -0.05, 0.12]} material={new MeshStandardMaterial({ color: "#2d1606", roughness: 0.9 })}>
+                  <boxGeometry args={[0.035, 0.04, 0.16]} />
+                </mesh>
+                {/* Thin Barrel end */}
+                <mesh position={[0, 0, 0.22]} rotation={[Math.PI / 2, 0, 0]} material={new MeshStandardMaterial({ color: "#1a1a1a", metalness: 0.8 })}>
+                  <cylinderGeometry args={[0.01, 0.01, 0.1, 8]} />
+                </mesh>
+              </group>
+            )}
+
+            {hasGun && weaponType === 'shotgun' && (
+              <group position={[0, -0.42, 0.15]} rotation={[Math.PI / 2, 0, 0]}>
+                {/* Long Barrel */}
+                <mesh castShadow position={[0, 0.015, 0.1]} rotation={[Math.PI / 2, 0, 0]} material={new MeshStandardMaterial({ color: "#222", roughness: 0.3, metalness: 0.85 })}>
+                  <cylinderGeometry args={[0.012, 0.012, 0.45, 8]} />
+                </mesh>
+                {/* Lower Tube */}
+                <mesh castShadow position={[0, -0.015, 0.06]} rotation={[Math.PI / 2, 0, 0]} material={new MeshStandardMaterial({ color: "#111", roughness: 0.3, metalness: 0.85 })}>
+                  <cylinderGeometry args={[0.014, 0.014, 0.35, 8]} />
+                </mesh>
+                {/* Receiver */}
+                <mesh castShadow position={[0, 0, -0.1]} material={new MeshStandardMaterial({ color: "#111", roughness: 0.4, metalness: 0.8 })}>
+                  <boxGeometry args={[0.04, 0.06, 0.16]} />
+                </mesh>
+                {/* Grip / handle / Stock base */}
+                <mesh position={[0, -0.04, -0.16]} rotation={[-0.4, 0, 0]} material={new MeshStandardMaterial({ color: "#281c00", roughness: 0.9 })}>
+                  <boxGeometry args={[0.035, 0.09, 0.045]} />
+                </mesh>
+                {/* Pump (wood) */}
+                <mesh position={[0, -0.015, 0.12]} rotation={[Math.PI / 2, 0, 0]} material={new MeshStandardMaterial({ color: "#281c00", roughness: 0.9 })}>
+                  <cylinderGeometry args={[0.02, 0.02, 0.12, 8]} />
                 </mesh>
               </group>
             )}

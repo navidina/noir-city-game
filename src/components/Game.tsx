@@ -687,7 +687,13 @@ export function GameScene() {
       const ammoToConsume = 1;
       gState.setAmmo(gState.ammo - ammoToConsume);
 
-      cameraShakeRef.current = 0.2; // Shooting recoil shake
+      if (gState.weapon === 'shotgun') {
+        cameraShakeRef.current = 0.5; // Huge recoil
+      } else if (gState.weapon === 'tommy') {
+        cameraShakeRef.current = 0.12; // Small rapid recoil
+      } else {
+        cameraShakeRef.current = 0.2; // Standard recoil shake
+      }
       playShootSound();
 
       // Fire gun facing direction
@@ -696,13 +702,17 @@ export function GameScene() {
 
       _rightVec.set(_fireDir.z, 0, -_fireDir.x);
 
-      // We need to spawn two bullets for dual-wielding!
+      let rightOffset = 0.28;
+      if (gState.weapon !== 'pistol') {
+        rightOffset = 0.12; // Hold closer to center for rifles
+      }
+
       // Right gun offset
       _firePosRight
         .copy(playerPos.current)
         .addScaledVector(_tmpVec.set(0, 1.35, 0), 1) // shoulder height
-        .addScaledVector(_rightVec, 0.28) // pushed to right shoulder
-        .addScaledVector(_fireDir, 0.89); // pushed forward
+        .addScaledVector(_rightVec, rightOffset) // pushed to right shoulder 
+        .addScaledVector(_fireDir, gState.weapon === 'shotgun' ? 1.05 : 0.89); // pushed forward
 
       // Left gun offset
       _firePosLeft
@@ -1384,6 +1394,7 @@ export function GameScene() {
           isRunning={playerRunning}
           isShooting={isShooting}
           hasGun={true}
+          weaponType={useGameStore.getState().weapon}
           dualWield={useGameStore.getState().weapon === 'pistol'}
           isReloading={useGameStore.getState().isReloading}
         />
@@ -1500,8 +1511,8 @@ export function GameScene() {
           const isTommy = p.type === "weapon_tommy";
           const color = isTommy ? "#ffaa00" : "#ff5500";
           return (
-            <group key={p.id} position={[p.position.x, 0.5, p.position.z]}>
-               <mesh
+             <group key={p.id} position={[p.position.x, 0.5, p.position.z]}>
+               <group
                 ref={(el) => {
                   if (el) {
                     const time = performance.now() * 0.003;
@@ -1510,10 +1521,34 @@ export function GameScene() {
                   }
                 }}
               >
-                {/* Gun barrel like shape */}
-                <boxGeometry args={isTommy ? [0.6, 0.15, 0.15] : [0.7, 0.2, 0.1]} />
-                <meshBasicMaterial color={color} />
-              </mesh>
+                {isTommy ? (
+                  <>
+                    <mesh position={[0, 0, 0]}>
+                      <boxGeometry args={[0.5, 0.1, 0.1]} />
+                      <meshBasicMaterial color={color} />
+                    </mesh>
+                    <mesh position={[-0.1, -0.1, 0]}>
+                      <cylinderGeometry args={[0.12, 0.12, 0.1, 16]} />
+                      <meshBasicMaterial color={color} />
+                    </mesh>
+                  </>
+                ) : (
+                  <>
+                    <mesh position={[0, 0, 0]}>
+                      <boxGeometry args={[0.6, 0.08, 0.08]} />
+                      <meshBasicMaterial color={color} />
+                    </mesh>
+                    <mesh position={[0, -0.06, 0]}>
+                      <boxGeometry args={[0.4, 0.06, 0.09]} />
+                      <meshBasicMaterial color={color} />
+                    </mesh>
+                    <mesh position={[-0.15, -0.12, 0]}>
+                      <boxGeometry args={[0.08, 0.15, 0.08]} />
+                      <meshBasicMaterial color={color} />
+                    </mesh>
+                  </>
+                )}
+              </group>
             </group>
           );
         }
@@ -1589,6 +1624,7 @@ export function GameScene() {
               isRunning={npc.type === "rusher"}
               isShooting={(npc.type !== "rusher" && npc.isShooting) || false}
               hasGun={npc.type !== "rusher"} // Rushers don't carry guns
+              weaponType={npc.weaponType}
             />
 
             {/* Dynamic segmented health indicator overlay */}
