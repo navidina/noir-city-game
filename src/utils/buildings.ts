@@ -1,3 +1,5 @@
+export type BuildingKind = 'glass' | 'concrete' | 'brick';
+
 export type BuildingData = {
   x: number;
   z: number;
@@ -5,9 +7,20 @@ export type BuildingData = {
   d: number;
   h: number;
   id: number;
-  lightTheme: string;
-  lightHeight: number;
-  windowRows: number;
+  kind: BuildingKind;
+  tiered: boolean;
+  waterTower: boolean;
+  billboard: boolean;
+  awningColor: string;
+};
+
+export type SkylineData = {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  h: number;
+  id: number;
 };
 
 // Use a simple seeded random to maintain consistent building layouts
@@ -20,35 +33,74 @@ function seededRandom(seed: number) {
   };
 }
 
+const AWNING_COLORS = ['#7a2e2e', '#2e4a3d', '#2e3a55', '#6b5328'];
+
+// Manhattan-style grid: city blocks at fixed cells, separated by streets.
+// Main avenues run along x=0 (north-south) and z=0 (east-west).
 export const generateBuildings = (seed = 12345): BuildingData[] => {
-  const items: BuildingData[] = [];
   const rng = seededRandom(seed);
-  
-  for (let i = 0; i < 45; i++) {
-    const angle = (i / 45) * Math.PI * 2;
-    const radius = 18 + rng() * 25;
-    
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    
-    // Leave space for the main central cross-junction street
-    if (Math.abs(x) < 8 || Math.abs(z) < 8) continue;
-    
-    const width = 3 + rng() * 5;
-    const depth = 3 + rng() * 5;
-    const height = 8 + rng() * 22;
-    
-    // Define building variant stylistic decor (e.g. Neon colors or window patterns)
-    const lightTheme = rng() > 0.5 ? '#ff5500' : '#00ffff'; 
-    const lightHeight = height * (0.3 + rng() * 0.6);
-    const windowRows = Math.floor(4 + rng() * 6);
-    
-    items.push({ x, z, w: width, d: depth, h: height, id: i, lightTheme, lightHeight, windowRows });
+  const coords = [-39, -26, -13, 13, 26, 39];
+  const items: BuildingData[] = [];
+  let id = 0;
+
+  for (const cx of coords) {
+    for (const cz of coords) {
+      const roll = rng();
+      let kind: BuildingKind =
+        roll < 0.4 ? 'glass' : roll < 0.75 ? 'concrete' : 'brick';
+      // Downtown core: cells touching the main crossing favour glass towers
+      const core = Math.abs(cx) <= 13 && Math.abs(cz) <= 13;
+      if (core && rng() < 0.5) kind = 'glass';
+
+      const h =
+        kind === 'glass'
+          ? 15 + rng() * 11
+          : kind === 'concrete'
+            ? 9 + rng() * 7
+            : 6 + rng() * 3.5;
+      const w = 6.5 + rng() * 3;
+      const d = 6.5 + rng() * 3;
+
+      items.push({
+        x: cx + (rng() - 0.5) * 1.6,
+        z: cz + (rng() - 0.5) * 1.6,
+        w,
+        d,
+        h,
+        id: id++,
+        kind,
+        tiered: kind === 'glass' && rng() < 0.6,
+        waterTower: kind !== 'glass' && rng() < 0.35,
+        billboard: kind === 'concrete' && rng() < 0.18,
+        awningColor: AWNING_COLORS[Math.floor(rng() * AWNING_COLORS.length)],
+      });
+    }
+  }
+  return items;
+};
+
+// Tall tower silhouettes ringing the playable area: a downtown skyline
+// softened by distance fog.
+export const generateSkyline = (seed = 777): SkylineData[] => {
+  const rng = seededRandom(seed);
+  const items: SkylineData[] = [];
+  for (let i = 0; i < 20; i++) {
+    const angle = (i / 20) * Math.PI * 2 + rng() * 0.2;
+    const radius = 60 + rng() * 20;
+    items.push({
+      x: Math.cos(angle) * radius,
+      z: Math.sin(angle) * radius,
+      w: 9 + rng() * 9,
+      d: 9 + rng() * 9,
+      h: 32 + rng() * 38,
+      id: i,
+    });
   }
   return items;
 };
 
 export const BUILDINGS = generateBuildings();
+export const SKYLINE = generateSkyline();
 
 export const resolveBuildingCollisions = (pos: {x: number, y: number, z: number}, radius: number = 0.5) => {
   for (const b of BUILDINGS) {
@@ -65,9 +117,9 @@ export const resolveBuildingCollisions = (pos: {x: number, y: number, z: number}
           Math.abs(pos.z - minZ),
           Math.abs(pos.z - maxZ)
       ];
-      
+
       const minDist = Math.min(...dists);
-      
+
       if (minDist === dists[0]) pos.x = minX;
       else if (minDist === dists[1]) pos.x = maxX;
       else if (minDist === dists[2]) pos.z = minZ;

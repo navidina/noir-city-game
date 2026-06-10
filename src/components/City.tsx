@@ -1,439 +1,709 @@
 import { useMemo, useRef } from "react";
 import { Instances, Instance } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Mesh, MeshStandardMaterial } from "three";
-import { BUILDINGS, BuildingData } from "../utils/buildings";
+import { MeshStandardMaterial } from "three";
+import { BUILDINGS, SKYLINE, BuildingData } from "../utils/buildings";
 
-function Building({ b, bColor }: { b: BuildingData; bColor: string }) {
+// ---------------------------------------------------------------------------
+// Shared materials (module-level: one allocation for the whole city)
+// ---------------------------------------------------------------------------
+const asphaltMat = new MeshStandardMaterial({ color: "#55524c", roughness: 0.9, metalness: 0.05 });
+const asphaltSideMat = new MeshStandardMaterial({ color: "#625f58", roughness: 0.9 });
+const sidewalkMat = new MeshStandardMaterial({ color: "#a6a094", roughness: 0.8 });
+const curbMat = new MeshStandardMaterial({ color: "#8d877c", roughness: 0.6 });
+const paintWhiteMat = new MeshStandardMaterial({ color: "#d9d4c9", roughness: 0.8 });
+const paintYellowMat = new MeshStandardMaterial({ color: "#c9a23a", roughness: 0.7 });
+const metalDarkMat = new MeshStandardMaterial({ color: "#26262a", roughness: 0.45, metalness: 0.6 });
+const metalMidMat = new MeshStandardMaterial({ color: "#3c3c40", roughness: 0.5, metalness: 0.5 });
+const ironMat = new MeshStandardMaterial({ color: "#1a1a1a", roughness: 0.85, metalness: 0.7 });
+const trunkMat = new MeshStandardMaterial({ color: "#4a3a2a", roughness: 0.9 });
+const leafMat = new MeshStandardMaterial({ color: "#5d6b40", roughness: 0.9 });
+const leafDarkMat = new MeshStandardMaterial({ color: "#4d5a35", roughness: 0.9 });
+const planterMat = new MeshStandardMaterial({ color: "#7c766c", roughness: 0.8 });
+const hydrantMat = new MeshStandardMaterial({ color: "#a8352c", roughness: 0.5 });
+const benchWoodMat = new MeshStandardMaterial({ color: "#6d5638", roughness: 0.85 });
+const carGlassMat = new MeshStandardMaterial({ color: "#1d2630", roughness: 0.1, metalness: 0.8 });
+const tireMat = new MeshStandardMaterial({ color: "#141414", roughness: 0.9 });
+const taxiYellowMat = new MeshStandardMaterial({ color: "#d8a017", roughness: 0.5 });
+const acUnitMat = new MeshStandardMaterial({ color: "#6f6a62", roughness: 0.8 });
+const waterTowerMat = new MeshStandardMaterial({ color: "#5a4632", roughness: 0.9 });
+const billboardPanelMat = new MeshStandardMaterial({ color: "#181818", roughness: 0.6 });
+const billboardArtMat = new MeshStandardMaterial({ color: "#e8e2d4", roughness: 0.7 });
+const billboardRedMat = new MeshStandardMaterial({ color: "#9c2727", roughness: 0.6 });
+const lightRedMat = new MeshStandardMaterial({ color: "#5c1d1d", emissive: "#ff3b30", emissiveIntensity: 0.7 });
+const lightAmberMat = new MeshStandardMaterial({ color: "#5c481d", emissive: "#cc8800", emissiveIntensity: 0.15 });
+const lightGreenMat = new MeshStandardMaterial({ color: "#1d4a2a", emissive: "#22aa55", emissiveIntensity: 0.15 });
+const skylineMat = new MeshStandardMaterial({ color: "#8f897e", roughness: 0.8 });
+const skylineGlassMat = new MeshStandardMaterial({ color: "#7d828a", roughness: 0.5, metalness: 0.4 });
+
+const FACADE_COLORS: Record<string, string[]> = {
+  glass: ["#7e8a93", "#6f7c88", "#88929a"],
+  concrete: ["#948a7c", "#877d70", "#a3978a"],
+  brick: ["#8a5d4a", "#796f62", "#6b6155", "#94705c"],
+};
+
+// ---------------------------------------------------------------------------
+// One building: facade box, per-building instanced window grid (fades together
+// with the box when it blocks the camera), and rooftop/street-level details.
+// ---------------------------------------------------------------------------
+function Building({ b }: { b: BuildingData }) {
   const materialsRef = useRef<MeshStandardMaterial[]>([]);
+  const reg = (m: MeshStandardMaterial | null) => {
+    if (m && !materialsRef.current.includes(m)) materialsRef.current.push(m);
+  };
 
   useFrame((state) => {
-    // Determine if building is between camera and player
-    // Camera is roughly at (px, py+12, pz+16)
-    const playerZApprox = state.camera.position.z - 16;
-    const playerXApprox = state.camera.position.x;
+    // Fade the building when it stands between the camera and the player.
+    // Camera looks at the player from +x/+z, roughly (px+15, py+20, pz+15).
+    const playerXApprox = state.camera.position.x - 15;
+    const playerZApprox = state.camera.position.z - 15;
 
-    // Check if building is in front of the player (closer to camera) and block the view radially
     const isOccluding =
+      b.h > 6 &&
+      b.x > playerXApprox - b.w / 2 &&
+      b.x < state.camera.position.x + 5 &&
       b.z > playerZApprox - b.d / 2 &&
       b.z < state.camera.position.z + 5 &&
-      Math.abs(b.x - playerXApprox) < b.w / 2 + 4.5 &&
-      b.h > 4;
+      (Math.abs(b.x - playerXApprox) < b.w / 2 + 4.5 ||
+        Math.abs(b.z - playerZApprox) < b.d / 2 + 4.5);
 
-    const targetOpacity = isOccluding ? 0.3 : 1.0;
+    const targetOpacity = isOccluding ? 0.22 : 1.0;
 
     materialsRef.current.forEach((mat) => {
       if (mat) {
-        mat.opacity += (targetOpacity - mat.opacity) * 0.1;
+        mat.opacity += (targetOpacity - mat.opacity) * 0.12;
         mat.transparent = true;
-        mat.depthWrite = !isOccluding;
+        mat.depthWrite = mat.opacity > 0.6;
       }
     });
   });
 
+  const facade = FACADE_COLORS[b.kind][b.id % FACADE_COLORS[b.kind].length];
+  const lowerH = b.tiered ? b.h * 0.62 : b.h;
+  const upperH = b.h - lowerH;
+  const upperW = b.w * 0.68;
+  const upperD = b.d * 0.68;
+
+  // Window grid on the two camera-facing facades (+x and +z)
+  const windows = useMemo(() => {
+    const out: {
+      pos: [number, number, number];
+      scale: [number, number, number];
+      color: string;
+    }[] = [];
+    const isGlass = b.kind === "glass";
+    const rowStep = isGlass ? 1.25 : 1.5;
+    const groundClear = b.kind === "brick" ? 3.0 : 3.2; // leave room for storefronts
+    const rows = Math.min(
+      16,
+      Math.max(0, Math.floor((lowerH - groundClear - 0.8) / rowStep)),
+    );
+    const winColors = isGlass
+      ? ["#39424d", "#46525e", "#2f3841"]
+      : ["#3a3f46", "#2f343b", "#494f57"];
+    const litColor = "#c8b386";
+
+    const facesSpec = [
+      { axis: "z" as const, span: b.w },
+      { axis: "x" as const, span: b.d },
+    ];
+
+    for (const face of facesSpec) {
+      const cols = Math.min(7, Math.floor(face.span / 1.1));
+      const usable = face.span * 0.78;
+      const step = usable / cols;
+      for (let r = 0; r < rows; r++) {
+        const y = groundClear + r * rowStep;
+        for (let c = 0; c < cols; c++) {
+          const off = -usable / 2 + step * (c + 0.5);
+          // Deterministic sparse "lit" windows for life
+          const lit = (b.id * 7 + r * 13 + c * 5) % 23 === 0;
+          const color = lit
+            ? litColor
+            : winColors[(b.id + r + c) % winColors.length];
+          if (face.axis === "z") {
+            out.push({
+              pos: [b.x + off, y, b.z + b.d / 2 + 0.025],
+              scale: [step * 0.6, isGlass ? 0.95 : 0.7, 0.05],
+              color,
+            });
+          } else {
+            out.push({
+              pos: [b.x + b.w / 2 + 0.025, y, b.z + off],
+              scale: [0.05, isGlass ? 0.95 : 0.7, step * 0.6],
+              color,
+            });
+          }
+        }
+      }
+    }
+    return out;
+  }, [b, lowerH]);
+
   return (
     <group>
-      {/* Building Frame Block */}
-      <mesh receiveShadow castShadow position={[b.x, b.h / 2, b.z]}>
-        <boxGeometry args={[b.w, b.h, b.d]} />
+      {/* Main facade block */}
+      <mesh receiveShadow castShadow position={[b.x, lowerH / 2, b.z]}>
+        <boxGeometry args={[b.w, lowerH, b.d]} />
         <meshStandardMaterial
-          ref={(m) => {
-            if (m && !materialsRef.current.includes(m))
-              materialsRef.current.push(m);
-          }}
-          color={bColor}
-          roughness={0.7}
-          metalness={0.15}
+          ref={reg}
+          color={facade}
+          roughness={b.kind === "glass" ? 0.4 : 0.75}
+          metalness={b.kind === "glass" ? 0.35 : 0.1}
         />
       </mesh>
 
-      {/* AC Ventilation Roof Details on shorter skyscrapers */}
-      {b.h < 15 && (
-        <mesh position={[b.x, b.h + 0.15, b.z]}>
-          <boxGeometry args={[b.w * 0.6, 0.3, b.d * 0.6]} />
-          <meshStandardMaterial
-            ref={(m) => {
-              if (m && !materialsRef.current.includes(m))
-                materialsRef.current.push(m);
-            }}
-            color="#403c37"
-            roughness={0.8}
-          />
-        </mesh>
+      {/* Setback upper tier on modern towers */}
+      {b.tiered && (
+        <>
+          <mesh
+            receiveShadow
+            castShadow
+            position={[b.x, lowerH + upperH / 2, b.z]}
+          >
+            <boxGeometry args={[upperW, upperH, upperD]} />
+            <meshStandardMaterial
+              ref={reg}
+              color={facade}
+              roughness={0.4}
+              metalness={0.35}
+            />
+          </mesh>
+          {/* Vertical mullion strips on the upper tier */}
+          {[-0.25, 0, 0.25].map((f) => (
+            <mesh
+              key={`mz-${f}`}
+              position={[b.x + upperW * f, lowerH + upperH / 2, b.z + upperD / 2 + 0.02]}
+            >
+              <boxGeometry args={[0.08, upperH * 0.9, 0.04]} />
+              <meshStandardMaterial ref={reg} color="#34383d" roughness={0.4} metalness={0.5} />
+            </mesh>
+          ))}
+        </>
       )}
 
-      {/* Decorative vertical pillar slits extending upwards */}
+      {/* Roof parapet */}
       <mesh
-        position={[b.x + b.w * 0.5 - 0.1, b.h * 0.85, b.z - b.d * 0.5 + 0.1]}
+        position={[
+          b.x,
+          (b.tiered ? b.h : lowerH) + 0.1,
+          b.z,
+        ]}
       >
-        <boxGeometry args={[0.03, b.h * 0.3, 0.08]} />
-        <meshStandardMaterial
-          ref={(m) => {
-            if (m && !materialsRef.current.includes(m))
-              materialsRef.current.push(m);
-          }}
-          color="#706861"
-          roughness={0.8}
+        <boxGeometry
+          args={[
+            (b.tiered ? upperW : b.w) + 0.15,
+            0.22,
+            (b.tiered ? upperD : b.d) + 0.15,
+          ]}
         />
+        <meshStandardMaterial ref={reg} color="#5d574e" roughness={0.8} />
+      </mesh>
+
+      {/* Rooftop AC units on low/mid buildings */}
+      {b.h < 16 && (
+        <>
+          <mesh position={[b.x - b.w * 0.18, lowerH + 0.45, b.z + b.d * 0.12]} material={acUnitMat}>
+            <boxGeometry args={[1.3, 0.7, 1.0]} />
+          </mesh>
+          <mesh position={[b.x + b.w * 0.22, lowerH + 0.35, b.z - b.d * 0.18]} material={acUnitMat}>
+            <boxGeometry args={[0.9, 0.5, 0.8]} />
+          </mesh>
+        </>
+      )}
+
+      {/* Classic American rooftop water tower */}
+      {b.waterTower && (
+        <group position={[b.x + b.w * 0.2, lowerH, b.z - b.d * 0.18]}>
+          {[[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]].map(([lx, lz], i) => (
+            <mesh key={i} position={[lx * 0.8, 0.45, lz * 0.8]} material={metalMidMat}>
+              <cylinderGeometry args={[0.05, 0.05, 0.9, 6]} />
+            </mesh>
+          ))}
+          <mesh position={[0, 1.55, 0]} material={waterTowerMat} castShadow>
+            <cylinderGeometry args={[0.85, 0.95, 1.4, 10]} />
+          </mesh>
+          <mesh position={[0, 2.55, 0]} material={waterTowerMat}>
+            <coneGeometry args={[0.95, 0.6, 10]} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Antenna spire on tall towers */}
+      {b.kind === "glass" && b.h > 18 && (
+        <group position={[b.x, b.h + 0.2, b.z]}>
+          <mesh position={[0, 1.2, 0]} material={metalDarkMat}>
+            <cylinderGeometry args={[0.04, 0.07, 2.4, 6]} />
+          </mesh>
+          <mesh position={[0, 2.5, 0]} material={lightRedMat}>
+            <sphereGeometry args={[0.09, 8, 8]} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Rooftop billboard angled toward downtown */}
+      {b.billboard && (
+        <group
+          position={[b.x, lowerH + 1.6, b.z]}
+          rotation={[0, Math.atan2(-b.x, -b.z), 0]}
+        >
+          <mesh position={[-1.4, -0.8, -0.2]} material={metalMidMat}>
+            <cylinderGeometry args={[0.06, 0.06, 1.6, 6]} />
+          </mesh>
+          <mesh position={[1.4, -0.8, -0.2]} material={metalMidMat}>
+            <cylinderGeometry args={[0.06, 0.06, 1.6, 6]} />
+          </mesh>
+          <mesh material={billboardPanelMat} castShadow>
+            <boxGeometry args={[4.4, 2.4, 0.12]} />
+          </mesh>
+          <mesh position={[0, 0.1, 0.07]} material={billboardArtMat}>
+            <boxGeometry args={[3.9, 1.5, 0.02]} />
+          </mesh>
+          <mesh position={[0, -0.85, 0.07]} material={billboardRedMat}>
+            <boxGeometry args={[3.9, 0.45, 0.02]} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Street-level storefront with awning on brick/concrete blocks */}
+      {b.kind !== "glass" && (
+        <group position={[b.x, 0, b.z + b.d / 2]}>
+          {/* Dark glass shopfront */}
+          <mesh position={[0, 1.0, 0.03]}>
+            <boxGeometry args={[b.w * 0.72, 1.7, 0.1]} />
+            <meshStandardMaterial ref={reg} color="#23282e" roughness={0.15} metalness={0.6} />
+          </mesh>
+          {/* Door frame */}
+          <mesh position={[b.w * 0.22, 0.95, 0.09]}>
+            <boxGeometry args={[0.75, 1.6, 0.04]} />
+            <meshStandardMaterial ref={reg} color="#15181c" roughness={0.4} />
+          </mesh>
+          {/* Awning */}
+          <mesh position={[0, 2.25, 0.5]} rotation={[0.35, 0, 0]}>
+            <boxGeometry args={[b.w * 0.78, 0.06, 1.05]} />
+            <meshStandardMaterial ref={reg} color={b.awningColor} roughness={0.85} />
+          </mesh>
+          {/* Shop sign band */}
+          <mesh position={[0, 2.75, 0.06]}>
+            <boxGeometry args={[b.w * 0.6, 0.45, 0.08]} />
+            <meshStandardMaterial ref={reg} color="#1d1d1f" roughness={0.6} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Window grid: one draw call per building, fades with the facade */}
+      {windows.length > 0 && (
+        <Instances limit={windows.length}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial ref={reg} roughness={0.2} metalness={0.55} />
+          {windows.map((w, i) => (
+            <Instance key={i} position={w.pos} scale={w.scale} color={w.color} />
+          ))}
+        </Instances>
+      )}
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Street furniture
+// ---------------------------------------------------------------------------
+function ParkedCar({
+  pos,
+  ry,
+  color,
+  taxi = false,
+}: {
+  pos: [number, number, number];
+  ry: number;
+  color?: string;
+  taxi?: boolean;
+}) {
+  const bodyMat = useMemo(
+    () =>
+      taxi
+        ? taxiYellowMat
+        : new MeshStandardMaterial({ color: color || "#23252b", roughness: 0.35, metalness: 0.5 }),
+    [color, taxi],
+  );
+  return (
+    <group position={pos} rotation={[0, ry, 0]}>
+      {/* Body */}
+      <mesh position={[0, 0.42, 0]} material={bodyMat} castShadow>
+        <boxGeometry args={[1.7, 0.5, 4.0]} />
+      </mesh>
+      {/* Cabin glasshouse */}
+      <mesh position={[0, 0.82, -0.25]} material={carGlassMat} castShadow>
+        <boxGeometry args={[1.5, 0.42, 2.0]} />
+      </mesh>
+      {/* Wheels */}
+      {[[-0.85, 1.25], [0.85, 1.25], [-0.85, -1.25], [0.85, -1.25]].map(([wx, wz], i) => (
+        <mesh key={i} position={[wx, 0.3, wz]} rotation={[0, 0, Math.PI / 2]} material={tireMat}>
+          <cylinderGeometry args={[0.3, 0.3, 0.2, 10]} />
+        </mesh>
+      ))}
+      {/* Lights */}
+      <mesh position={[0, 0.45, 2.01]} material={paintWhiteMat}>
+        <boxGeometry args={[1.3, 0.12, 0.04]} />
+      </mesh>
+      <mesh position={[0, 0.45, -2.01]} material={lightRedMat}>
+        <boxGeometry args={[1.3, 0.1, 0.04]} />
+      </mesh>
+      {/* Taxi roof sign */}
+      {taxi && (
+        <mesh position={[0, 1.1, -0.25]} material={paintWhiteMat}>
+          <boxGeometry args={[0.55, 0.14, 0.22]} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+function StreetTree({ pos }: { pos: [number, number, number] }) {
+  return (
+    <group position={pos}>
+      <mesh position={[0, 0.12, 0]} material={planterMat} receiveShadow>
+        <boxGeometry args={[1.0, 0.26, 1.0]} />
+      </mesh>
+      <mesh position={[0, 0.8, 0]} material={trunkMat} castShadow>
+        <cylinderGeometry args={[0.08, 0.12, 1.3, 6]} />
+      </mesh>
+      <mesh position={[0, 1.8, 0]} material={leafMat} castShadow>
+        <sphereGeometry args={[0.8, 8, 7]} />
+      </mesh>
+      <mesh position={[0.3, 2.15, 0.15]} material={leafDarkMat}>
+        <sphereGeometry args={[0.55, 8, 7]} />
       </mesh>
     </group>
   );
 }
 
+function TrafficLight({ pos, ry }: { pos: [number, number, number]; ry: number }) {
+  return (
+    <group position={pos} rotation={[0, ry, 0]}>
+      <mesh position={[0, 2.6, 0]} material={metalDarkMat}>
+        <cylinderGeometry args={[0.07, 0.1, 5.2, 8]} />
+      </mesh>
+      {/* Arm reaching over the road */}
+      <mesh position={[1.2, 5.0, 0]} rotation={[0, 0, Math.PI / 2]} material={metalDarkMat}>
+        <cylinderGeometry args={[0.05, 0.05, 2.4, 6]} />
+      </mesh>
+      {/* Signal head */}
+      <group position={[2.3, 4.7, 0]}>
+        <mesh material={metalDarkMat}>
+          <boxGeometry args={[0.3, 0.85, 0.3]} />
+        </mesh>
+        <mesh position={[0, 0.26, 0.16]} material={lightRedMat}>
+          <sphereGeometry args={[0.08, 8, 8]} />
+        </mesh>
+        <mesh position={[0, 0, 0.16]} material={lightAmberMat}>
+          <sphereGeometry args={[0.08, 8, 8]} />
+        </mesh>
+        <mesh position={[0, -0.26, 0.16]} material={lightGreenMat}>
+          <sphereGeometry args={[0.08, 8, 8]} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+function FireHydrant({ pos }: { pos: [number, number, number] }) {
+  return (
+    <group position={pos}>
+      <mesh position={[0, 0.3, 0]} material={hydrantMat} castShadow>
+        <cylinderGeometry args={[0.13, 0.16, 0.6, 8]} />
+      </mesh>
+      <mesh position={[0, 0.62, 0]} material={hydrantMat}>
+        <sphereGeometry args={[0.13, 8, 8]} />
+      </mesh>
+      <mesh position={[0, 0.42, 0]} rotation={[0, 0, Math.PI / 2]} material={hydrantMat}>
+        <cylinderGeometry args={[0.06, 0.06, 0.42, 6]} />
+      </mesh>
+    </group>
+  );
+}
+
+function Bench({ pos, ry }: { pos: [number, number, number]; ry: number }) {
+  return (
+    <group position={pos} rotation={[0, ry, 0]}>
+      <mesh position={[0, 0.5, 0]} material={benchWoodMat} castShadow>
+        <boxGeometry args={[1.7, 0.07, 0.5]} />
+      </mesh>
+      <mesh position={[0, 0.85, -0.24]} rotation={[-0.2, 0, 0]} material={benchWoodMat}>
+        <boxGeometry args={[1.7, 0.5, 0.06]} />
+      </mesh>
+      {[-0.7, 0.7].map((x) => (
+        <mesh key={x} position={[x, 0.25, 0]} material={metalDarkMat}>
+          <boxGeometry args={[0.07, 0.5, 0.45]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function StreetLamp({ pos, ry }: { pos: [number, number, number]; ry: number }) {
+  return (
+    <group position={pos} rotation={[0, ry, 0]}>
+      <mesh position={[0, 3.2, 0]} material={metalMidMat}>
+        <cylinderGeometry args={[0.07, 0.1, 6.4, 8]} />
+      </mesh>
+      <mesh position={[0.45, 6.4, 0]} rotation={[0, 0, Math.PI / 2]} material={metalMidMat}>
+        <cylinderGeometry args={[0.06, 0.06, 1.0, 8]} />
+      </mesh>
+      <mesh position={[0.9, 6.25, 0]} material={metalDarkMat}>
+        <boxGeometry args={[0.4, 0.15, 0.24]} />
+      </mesh>
+      <mesh position={[0.9, 6.17, 0]} material={paintWhiteMat}>
+        <boxGeometry args={[0.25, 0.02, 0.18]} />
+      </mesh>
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// City scene
+// ---------------------------------------------------------------------------
 export function City() {
-  const buildings = BUILDINGS;
+  // Painted road markings collected into two instanced draw calls
+  const whitePaint = useMemo(() => {
+    const out: { pos: [number, number, number]; scale: [number, number, number] }[] = [];
+    // Crosswalks over the N-S avenue (north + south of the intersection)
+    for (const z of [-11, 11]) {
+      for (let i = 0; i < 9; i++) {
+        out.push({ pos: [-4 + i * 1.0, 0.025, z], scale: [0.5, 0.004, 3.2] });
+      }
+    }
+    // Crosswalks over the E-W avenue (east + west of the intersection)
+    for (const x of [-9.5, 9.5]) {
+      for (let i = 0; i < 15; i++) {
+        out.push({ pos: [x, 0.025, -11.9 + i * 1.7], scale: [3.2, 0.004, 0.6] });
+      }
+    }
+    // Dashed lane separators on the wide E-W avenue
+    for (const z of [-7, 7]) {
+      for (let i = 0; i < 18; i++) {
+        const x = -55 + i * 6.3;
+        if (Math.abs(x) < 9) continue;
+        out.push({ pos: [x, 0.025, z], scale: [2.2, 0.004, 0.14] });
+      }
+    }
+    return out;
+  }, []);
 
-  const ledges = useMemo(
-    () =>
-      buildings.flatMap((b) =>
-        Array.from({ length: b.windowRows }).map((_, r) => {
-          const hOffset = 1.0 + (r * (b.h - 1)) / b.windowRows;
-          return {
-            key: `${b.id}-${r}`,
-            pos: [b.x, hOffset, b.z + b.d / 2 + 0.015],
-            scale: [b.w * 0.85, 0.03, 0.005],
-          };
-        }),
-      ),
-    [buildings],
-  );
-
-  const windows1 = useMemo(
-    () =>
-      buildings
-        .filter((b) => b.id % 3 === 0)
-        .flatMap((b) =>
-          Array.from({ length: b.windowRows }).map((_, r) => {
-            const hOffset = 1.0 + (r * (b.h - 1)) / b.windowRows;
-            return {
-              key: `${b.id}-${r}`,
-              pos: [b.x - b.w * 0.25, hOffset + 0.06, b.z + b.d / 2 + 0.02],
-              scale: [0.15, 0.11, 0.005],
-            };
-          }),
-        ),
-    [buildings],
-  );
-
-  const windows2 = useMemo(
-    () =>
-      buildings
-        .filter((b) => b.id % 2 === 0)
-        .flatMap((b) =>
-          Array.from({ length: b.windowRows }).map((_, r) => {
-            const hOffset = 1.0 + (r * (b.h - 1)) / b.windowRows;
-            return {
-              key: `${b.id}-${r}`,
-              pos: [b.x + b.w * 0.2, hOffset + 0.06, b.z + b.d / 2 + 0.02],
-              scale: [0.15, 0.11, 0.005],
-            };
-          }),
-        ),
-    [buildings],
-  );
+  const yellowPaint = useMemo(() => {
+    const out: { pos: [number, number, number]; scale: [number, number, number] }[] = [];
+    // Double yellow centerline, N-S avenue
+    for (let i = 0; i < 16; i++) {
+      const z = -52 + i * 7;
+      if (Math.abs(z) < 15) continue;
+      out.push({ pos: [-0.12, 0.025, z], scale: [0.08, 0.004, 4.2] });
+      out.push({ pos: [0.12, 0.025, z], scale: [0.08, 0.004, 4.2] });
+    }
+    // Double yellow centerline, E-W avenue
+    for (let i = 0; i < 16; i++) {
+      const x = -52 + i * 7;
+      if (Math.abs(x) < 11) continue;
+      out.push({ pos: [x, 0.025, -0.12], scale: [4.2, 0.004, 0.08] });
+      out.push({ pos: [x, 0.025, 0.12], scale: [4.2, 0.004, 0.08] });
+    }
+    return out;
+  }, []);
 
   return (
     <group>
-      {/* 1. Main Asphalt Road Base (Realistic warm daylight asphalt/stone concrete) */}
-      <mesh
-        receiveShadow
-        position={[0, -0.01, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <planeGeometry args={[110, 110]} />
-        <meshStandardMaterial
-          color="#8c887f"
-          roughness={0.65}
-          metalness={0.1}
-        />
+      {/* 1. Ground base: concrete sidewalk plain covering every block */}
+      <mesh receiveShadow position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={sidewalkMat}>
+        <planeGeometry args={[150, 150]} />
       </mesh>
 
-      {/* 2. Structured Sidewalks (Raised concrete walkways dividing the city) */}
-      {/* Left/Right walkways bounding the north-south road */}
-      <mesh receiveShadow position={[-16, 0.05, 0]}>
-        <boxGeometry args={[20, 0.1, 110]} />
-        <meshStandardMaterial color="#aba59a" roughness={0.7} />
+      {/* 2. Asphalt: two main avenues + the secondary street grid */}
+      {/* N-S main avenue */}
+      <mesh receiveShadow position={[0, 0.008, 0]} rotation={[-Math.PI / 2, 0, 0]} material={asphaltMat}>
+        <planeGeometry args={[12.4, 150]} />
       </mesh>
-      <mesh receiveShadow position={[16, 0.05, 0]}>
-        <boxGeometry args={[20, 0.1, 110]} />
-        <meshStandardMaterial color="#aba59a" roughness={0.7} />
+      {/* E-W main avenue (wide boulevard) */}
+      <mesh receiveShadow position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]} material={asphaltMat}>
+        <planeGeometry args={[150, 28.4]} />
       </mesh>
+      {/* Secondary side streets between the blocks */}
+      {[-32.5, -19.5, 19.5, 32.5].map((x) => (
+        <mesh key={`sns-${x}`} receiveShadow position={[x, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} material={asphaltSideMat}>
+          <planeGeometry args={[3.6, 150]} />
+        </mesh>
+      ))}
+      {[-32.5, -19.5, 19.5, 32.5].map((z) => (
+        <mesh key={`sew-${z}`} receiveShadow position={[0, 0.002, z]} rotation={[-Math.PI / 2, 0, 0]} material={asphaltSideMat}>
+          <planeGeometry args={[150, 3.6]} />
+        </mesh>
+      ))}
 
-      {/* East-West road sidewalks */}
-      <mesh receiveShadow position={[0, 0.051, -20]}>
-        <boxGeometry args={[110, 0.09, 12]} />
-        <meshStandardMaterial color="#b3ada2" roughness={0.7} />
-      </mesh>
-      <mesh receiveShadow position={[0, 0.051, 20]}>
-        <boxGeometry args={[110, 0.09, 12]} />
-        <meshStandardMaterial color="#b3ada2" roughness={0.7} />
-      </mesh>
+      {/* 3. Curbs along the main avenues */}
+      {[-6.4, 6.4].map((x) => (
+        <mesh key={`curb-ns-${x}`} position={[x, 0.03, 0]} material={curbMat}>
+          <boxGeometry args={[0.16, 0.07, 150]} />
+        </mesh>
+      ))}
+      {[-14.4, 14.4].map((z) => (
+        <mesh key={`curb-ew-${z}`} position={[0, 0.03, z]} material={curbMat}>
+          <boxGeometry args={[150, 0.07, 0.16]} />
+        </mesh>
+      ))}
 
-      {/* Raised Sidewalk Curb lines (Highlighting edges structure) */}
-      <mesh position={[-6.05, 0.11, 0]}>
-        <boxGeometry args={[0.1, 0.04, 110]} />
-        <meshStandardMaterial color="#6e685f" roughness={0.5} />
-      </mesh>
-      <mesh position={[6.05, 0.11, 0]}>
-        <boxGeometry args={[0.1, 0.04, 110]} />
-        <meshStandardMaterial color="#6e685f" roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0.11, -14.05]}>
-        <boxGeometry args={[110, 0.04, 0.1]} />
-        <meshStandardMaterial color="#6e685f" roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0.11, 14.05]}>
-        <boxGeometry args={[110, 0.04, 0.1]} />
-        <meshStandardMaterial color="#6e685f" roughness={0.5} />
-      </mesh>
-
-      {/* 3. Road Markings (Double yellow line divider matching classic city streets) */}
-      {Array.from({ length: 15 }).map((_, i) => {
-        const z = -45 + i * 7;
-        if (Math.abs(z) < 14) return null; // Avoid overlapping intersection crosswalk area
-        return (
-          <group key={`lane-${i}`}>
-            {/* Left yellow bar */}
-            <mesh position={[-0.1, 0.012, z]}>
-              <boxGeometry args={[0.07, 0.002, 3.8]} />
-              <meshStandardMaterial color="#cca43b" roughness={0.65} />
-            </mesh>
-            {/* Right yellow bar */}
-            <mesh position={[0.1, 0.012, z]}>
-              <boxGeometry args={[0.07, 0.002, 3.8]} />
-              <meshStandardMaterial color="#cca43b" roughness={0.65} />
-            </mesh>
-          </group>
-        );
-      })}
-
-      {/* Main Intersection Crosswalk / Zebra Crossing (Off-white warm layout) */}
-      {/* North crosswalk elements */}
-      <group position={[0, 0.01, -11]}>
-        {Array.from({ length: 9 }).map((_, i) => (
-          <mesh key={`zebra-n-${i}`} position={[-4 + i * 1.0, 0, 0]}>
-            <boxGeometry args={[0.5, 0.002, 3.2]} />
-            <meshStandardMaterial color="#dfdad0" roughness={0.8} />
-          </mesh>
+      {/* 4. Road paint: 2 instanced draw calls for all markings */}
+      <Instances limit={whitePaint.length}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#d9d4c9" roughness={0.8} />
+        {whitePaint.map((m, i) => (
+          <Instance key={i} position={m.pos} scale={m.scale} />
         ))}
-      </group>
-      {/* South crosswalk elements */}
-      <group position={[0, 0.01, 11]}>
-        {Array.from({ length: 9 }).map((_, i) => (
-          <mesh key={`zebra-s-${i}`} position={[-4 + i * 1.0, 0, 0]}>
-            <boxGeometry args={[0.5, 0.002, 3.2]} />
-            <meshStandardMaterial color="#dfdad0" roughness={0.8} />
-          </mesh>
+      </Instances>
+      <Instances limit={yellowPaint.length}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#c9a23a" roughness={0.7} />
+        {yellowPaint.map((m, i) => (
+          <Instance key={i} position={m.pos} scale={m.scale} />
         ))}
-      </group>
+      </Instances>
 
-      {/* Painted Off-White Street Direction Arrow */}
-      <group position={[1.5, 0.01, 24]} rotation={[0, Math.PI, 0]}>
-        {/* Shaft of the arrow */}
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[0.22, 0.002, 3.2]} />
-          <meshStandardMaterial color="#dfdad0" roughness={0.8} />
-        </mesh>
-        {/* Slanted diagonal pointer bars */}
-        <mesh position={[-0.45, 0, -1.2]} rotation={[0, 0.6, 0]}>
-          <boxGeometry args={[0.22, 0.002, 1.2]} />
-          <meshStandardMaterial color="#dfdad0" roughness={0.8} />
-        </mesh>
-        <mesh position={[0.45, 0, -1.2]} rotation={[0, -0.6, 0]}>
-          <boxGeometry args={[0.22, 0.002, 1.2]} />
-          <meshStandardMaterial color="#dfdad0" roughness={0.8} />
-        </mesh>
-      </group>
-
-      {/* 4. Elegant Sidewalk Props (Matches Image 2 features) */}
-      {/* Heavy iron dark drain manholes */}
-      <mesh position={[-3.2, 0.015, -4.5]} rotation={[0, 0.4, 0]}>
-        <cylinderGeometry args={[0.6, 0.6, 0.01, 12]} />
-        <meshStandardMaterial
-          color="#1a1a1a"
-          roughness={0.85}
-          metalness={0.7}
-        />
+      {/* 5. Manholes */}
+      <mesh position={[-3.2, 0.018, -4.5]} rotation={[0, 0.4, 0]} material={ironMat}>
+        <cylinderGeometry args={[0.6, 0.6, 0.012, 12]} />
       </mesh>
-      <mesh position={[3.5, 0.015, 18]} rotation={[0, 0, 0]}>
-        <cylinderGeometry args={[0.6, 0.6, 0.01, 12]} />
-        <meshStandardMaterial
-          color="#1a1a1a"
-          roughness={0.85}
-          metalness={0.7}
-        />
+      <mesh position={[3.5, 0.018, 18]} material={ironMat}>
+        <cylinderGeometry args={[0.6, 0.6, 0.012, 12]} />
       </mesh>
 
-      {/* Metal Bollards bounding corners */}
+      {/* 6. Parked traffic: sedans + yellow cabs along the avenue curbs */}
+      <ParkedCar pos={[-4.9, 0, -28]} ry={0} color="#23252b" />
+      <ParkedCar pos={[-4.9, 0, -23]} ry={0} color="#8a8d93" />
+      <ParkedCar pos={[-4.9, 0, 16]} ry={0} taxi />
+      <ParkedCar pos={[4.9, 0, -16]} ry={Math.PI} color="#6e2230" />
+      <ParkedCar pos={[4.9, 0, 24]} ry={Math.PI} color="#d8d4c8" />
+      <ParkedCar pos={[4.9, 0, 37]} ry={Math.PI} color="#2c3340" />
+      <ParkedCar pos={[-37, 0, -12.9]} ry={Math.PI / 2} color="#1d1f24" />
+      <ParkedCar pos={[-24, 0, -12.9]} ry={Math.PI / 2} color="#9aa0a6" />
+      <ParkedCar pos={[24, 0, -12.9]} ry={Math.PI / 2} taxi />
+      <ParkedCar pos={[-28, 0, 12.9]} ry={-Math.PI / 2} color="#37413b" />
+      <ParkedCar pos={[28, 0, 12.9]} ry={-Math.PI / 2} color="#23252b" />
+
+      {/* 7. Street trees in sidewalk planters */}
+      <StreetTree pos={[-7.6, 0, -38]} />
+      <StreetTree pos={[7.6, 0, -28]} />
+      <StreetTree pos={[-7.6, 0, -17]} />
+      <StreetTree pos={[7.6, 0, 17]} />
+      <StreetTree pos={[-7.6, 0, 28]} />
+      <StreetTree pos={[7.6, 0, 38]} />
+      <StreetTree pos={[-38, 0, -15.8]} />
+      <StreetTree pos={[-27, 0, 15.8]} />
+      <StreetTree pos={[-16, 0, -15.8]} />
+      <StreetTree pos={[16, 0, 15.8]} />
+      <StreetTree pos={[27, 0, -15.8]} />
+      <StreetTree pos={[38, 0, 15.8]} />
+
+      {/* 8. Intersection hardware: traffic lights on all four corners */}
+      <TrafficLight pos={[-7.0, 0, -15.0]} ry={0} />
+      <TrafficLight pos={[7.0, 0, 15.0]} ry={Math.PI} />
+      <TrafficLight pos={[-7.0, 0, 15.0]} ry={Math.PI / 2} />
+      <TrafficLight pos={[7.0, 0, -15.0]} ry={-Math.PI / 2} />
+
+      {/* 9. Sidewalk props: hydrants, benches, bins, bollards, newspaper boxes */}
+      <FireHydrant pos={[6.9, 0, -17.5]} />
+      <FireHydrant pos={[-6.9, 0, 17.5]} />
+      <FireHydrant pos={[16.2, 0, 14.9]} />
+      <Bench pos={[-10, 0, 15.6]} ry={Math.PI} />
+      <Bench pos={[14, 0, -15.6]} ry={0} />
+      <Bench pos={[7.3, 0, -26]} ry={-Math.PI / 2} />
       {[-5.6, 5.6].map((x) =>
         [-13.5, 13.5].map((z) => (
           <group key={`bollard-${x}-${z}`} position={[x, 0.1, z]}>
-            {/* Bollard pole */}
-            <mesh>
+            <mesh material={metalDarkMat}>
               <cylinderGeometry args={[0.08, 0.09, 0.72, 8]} />
-              <meshStandardMaterial
-                color="#1e1e1e"
-                roughness={0.4}
-                metalness={0.65}
-              />
             </mesh>
-            {/* Cap */}
-            <mesh position={[0, 0.36, 0]}>
+            <mesh position={[0, 0.36, 0]} material={metalMidMat}>
               <sphereGeometry args={[0.09, 8, 8]} />
-              <meshStandardMaterial
-                color="#333333"
-                roughness={0.3}
-                metalness={0.8}
-              />
             </mesh>
           </group>
         )),
       )}
-
-      {/* Trash columns / garbage bins on sidewalks */}
-      <group position={[-6.8, 0.1, 4]}>
-        <mesh position={[0, 0.4, 0]}>
-          <boxGeometry args={[0.55, 0.8, 0.55]} />
-          <meshStandardMaterial
-            color="#2d2d2d"
-            roughness={0.5}
-            metalness={0.3}
-          />
+      {/* Trash bins */}
+      {[[-6.8, 4], [6.8, -16], [-15.5, 15.8]].map(([x, z], i) => (
+        <group key={`bin-${i}`} position={[x, 0.1, z]}>
+          <mesh position={[0, 0.4, 0]} material={metalMidMat} castShadow>
+            <cylinderGeometry args={[0.3, 0.26, 0.8, 10]} />
+          </mesh>
+          <mesh position={[0, 0.82, 0]} material={metalDarkMat}>
+            <cylinderGeometry args={[0.32, 0.32, 0.05, 10]} />
+          </mesh>
+        </group>
+      ))}
+      {/* Newspaper boxes near the crossing */}
+      {[["#9c2727", -8.2], ["#2e3a55", -8.9], ["#6b5328", -9.6]].map(([c, x], i) => (
+        <mesh key={`news-${i}`} position={[x as number, 0.35, -15.4]} castShadow>
+          <boxGeometry args={[0.4, 0.6, 0.4]} />
+          <meshStandardMaterial color={c as string} roughness={0.6} />
         </mesh>
-        <mesh position={[0, 0.81, 0]}>
-          <boxGeometry args={[0.58, 0.03, 0.58]} />
-          <meshStandardMaterial color="#111111" roughness={0.3} />
+      ))}
+
+      {/* Bus stop shelter on the boulevard */}
+      <group position={[11.5, 0, 15.7]}>
+        {[-1.5, 1.5].map((x) => (
+          <mesh key={x} position={[x, 1.2, 0.5]} material={metalMidMat}>
+            <cylinderGeometry args={[0.05, 0.05, 2.4, 6]} />
+          </mesh>
+        ))}
+        <mesh position={[0, 2.45, 0]} material={metalDarkMat} castShadow>
+          <boxGeometry args={[3.6, 0.08, 1.4]} />
+        </mesh>
+        <mesh position={[0, 1.3, -0.55]} material={carGlassMat}>
+          <boxGeometry args={[3.4, 1.8, 0.05]} />
+        </mesh>
+        <mesh position={[0, 0.5, -0.2]} material={benchWoodMat}>
+          <boxGeometry args={[2.8, 0.07, 0.45]} />
         </mesh>
       </group>
-      <group position={[6.8, 0.1, -16]}>
-        <mesh position={[0, 0.4, 0]}>
-          <boxGeometry args={[0.55, 0.8, 0.55]} />
-          <meshStandardMaterial
-            color="#2d2d2d"
-            roughness={0.5}
-            metalness={0.3}
-          />
-        </mesh>
-        <mesh position={[0, 0.81, 0]}>
-          <boxGeometry args={[0.58, 0.03, 0.58]} />
-          <meshStandardMaterial color="#111111" roughness={0.3} />
-        </mesh>
-      </group>
 
-      {/* 5. High-fidelity Cinematic Streetlamps (Glow and Spotlights off during the Day) */}
-      {/* Placing 4 strategic lamp posts bounding the streets */}
-      {[
-        { x: -5.8, y: 7.0, z: -18.0, rY: 0 },
-        { x: 5.8, y: 7.0, z: 18.0, rY: Math.PI },
-        { x: -14.0, y: 7.0, z: 5.8, rY: -Math.PI / 2 },
-        { x: 14.0, y: 7.0, z: -5.8, rY: Math.PI / 2 },
-      ].map((lamp, i) => (
-        <group
-          key={`streetlamp-${i}`}
-          position={[lamp.x, 0.1, lamp.z]}
-          rotation={[0, lamp.rY, 0]}
-        >
-          {/* Main vertical slim post */}
-          <mesh position={[0, 3.2, 0]}>
-            <cylinderGeometry args={[0.07, 0.1, 6.4, 8]} />
-            <meshStandardMaterial
-              color="#333333"
-              roughness={0.6}
-              metalness={0.5}
-            />
+      {/* 10. Street lamps along both avenues */}
+      <StreetLamp pos={[-6.9, 0.1, -24]} ry={0} />
+      <StreetLamp pos={[6.9, 0.1, 24]} ry={Math.PI} />
+      <StreetLamp pos={[-6.9, 0.1, 36]} ry={0} />
+      <StreetLamp pos={[6.9, 0.1, -36]} ry={Math.PI} />
+      <StreetLamp pos={[-24, 0.1, 14.9]} ry={-Math.PI / 2} />
+      <StreetLamp pos={[24, 0.1, -14.9]} ry={Math.PI / 2} />
+      <StreetLamp pos={[-36, 0.1, -14.9]} ry={Math.PI / 2} />
+      <StreetLamp pos={[36, 0.1, 14.9]} ry={-Math.PI / 2} />
+
+      {/* 11. Downtown blocks */}
+      {BUILDINGS.map((b) => (
+        <Building key={b.id} b={b} />
+      ))}
+
+      {/* 12. Skyline silhouettes beyond the playfield, softened by fog */}
+      {SKYLINE.map((t) => (
+        <group key={`sky-${t.id}`}>
+          <mesh position={[t.x, t.h / 2, t.z]} material={t.id % 2 === 0 ? skylineGlassMat : skylineMat}>
+            <boxGeometry args={[t.w, t.h, t.d]} />
           </mesh>
-          {/* Top curved neck horizontal bar */}
-          <mesh position={[0.45, 6.4, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.06, 0.06, 1.0, 8]} />
-            <meshStandardMaterial
-              color="#333333"
-              roughness={0.6}
-              metalness={0.5}
-            />
-          </mesh>
-          {/* Flat lamp head fixture */}
-          <mesh position={[0.9, 6.25, 0]}>
-            <boxGeometry args={[0.4, 0.15, 0.24]} />
-            <meshStandardMaterial color="#2d2d2d" roughness={0.6} />
-          </mesh>
-          {/* Unlit streetlamp glass bulb */}
-          <mesh position={[0.9, 6.17, 0]}>
-            <boxGeometry args={[0.25, 0.02, 0.18]} />
-            <meshStandardMaterial color="#bfbaad" roughness={0.9} />
+          <mesh position={[t.x, t.h + t.h * 0.06, t.z]} material={skylineMat}>
+            <boxGeometry args={[t.w * 0.55, t.h * 0.12, t.d * 0.55]} />
           </mesh>
         </group>
       ))}
 
-      {/* 6. Upgraded Skyscrapers / Sandstone Facades with Window Highlights */}
-      {buildings.map((b) => {
-        // Diverse natural daytime skyscraper facade tones
-        const buildingColors = [
-          "#948a7c", // Natural warm concrete brick
-          "#796f62", // Earthy brown plaster
-          "#a3978a", // Light desert masonry stone
-          "#877d70", // Warm clay ochre
-          "#ab9f90", // Premium light limestone
-          "#6b6155", // Dark industrial base
-        ];
-        const bColor = buildingColors[b.id % buildingColors.length];
-
-        return <Building key={b.id} b={b} bColor={bColor} />;
-      })}
-
-      {/* OPTIMIZED GEOMETRY: Render all repetitive facade ledges using 1 draw call */}
-      <Instances limit={1000}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#302b26" roughness={0.6} />
-        {ledges.map((item) => (
-          <Instance
-            key={item.key}
-            position={item.pos as any}
-            scale={item.scale as any}
-          />
-        ))}
-      </Instances>
-
-      {/* OPTIMIZED GEOMETRY: Render window type 1 using 1 draw call */}
-      <Instances limit={500}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#ebdfcf" roughness={0.3} />
-        {windows1.map((item) => (
-          <Instance
-            key={item.key}
-            position={item.pos as any}
-            scale={item.scale as any}
-          />
-        ))}
-      </Instances>
-
-      {/* OPTIMIZED GEOMETRY: Render window type 2 using 1 draw call */}
-      <Instances limit={500}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#f0ede6" roughness={0.3} />
-        {windows2.map((item) => (
-          <Instance
-            key={item.key}
-            position={item.pos as any}
-            scale={item.scale as any}
-          />
-        ))}
-      </Instances>
-
-      {/* 7. Ambient Global Noon Glow and Crisp Solar Shadows */}
-      <ambientLight intensity={0.52} color="#ebe7dd" />
-      <hemisphereLight args={["#ffffff", "#80796d", 0.42]} />
+      {/* 13. Lighting: warm afternoon sun with long crisp shadows */}
+      <ambientLight intensity={0.5} color="#ebe7dd" />
+      <hemisphereLight args={["#fdf6e8", "#7d766a", 0.45]} />
       <directionalLight
-        position={[18, 55, 12]}
-        intensity={2.1}
-        color="#fff9f0" // Glistening golden warm sunlight
+        position={[28, 42, 16]}
+        intensity={2.2}
+        color="#fff6e8"
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-far={120}
-        shadow-camera-left={-40}
-        shadow-camera-right={40}
-        shadow-camera-top={40}
-        shadow-camera-bottom={-40}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-far={160}
+        shadow-camera-left={-55}
+        shadow-camera-right={55}
+        shadow-camera-top={55}
+        shadow-camera-bottom={-55}
         shadow-bias={-0.0008}
       />
     </group>
