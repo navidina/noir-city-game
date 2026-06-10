@@ -1,8 +1,11 @@
 import { Canvas } from '@react-three/fiber';
 import { UI } from './components/UI';
 import { GameScene } from './components/Game';
+import { useGameStore } from './store';
 
 export default function App() {
+  // Remounting the scene on restart resets all in-scene state (NPCs, bullets, pickups)
+  const runId = useGameStore((s) => s.runId);
   return (
     <div className="w-full h-full bg-[#dfdad2] flex items-center justify-center p-0 m-0 overflow-hidden font-sans text-white fixed inset-0">
       {/* Container for 9:16 aspect ratio */}
@@ -12,7 +15,7 @@ export default function App() {
           <Canvas shadows camera={{ position: [15, 20, 15], fov: 40 }}>
             <color attach="background" args={['#d6d0c2']} />
             <fog attach="fog" args={['#d6d0c2', 30, 90]} />
-            <GameScene />
+            <GameScene key={runId} />
           </Canvas>
           
           {/* Dramatic Daylight Flare Overlay */}

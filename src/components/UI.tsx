@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGameStore, WEAPONS } from "../store";
 
 function TopLeftHUD() {
-  const { score, totalNPCs, wave, health, maxHealth, weapon, ammo, isReloading } = useGameStore();
+  const { score, totalNPCs, wave, health, maxHealth, weapon, ammo, reserveAmmo, isReloading, kills } = useGameStore();
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
   const setMinimapCtx = useGameStore((s) => s.setMinimapCtx);
 
@@ -13,6 +13,7 @@ function TopLeftHUD() {
   }, [setMinimapCtx]);
 
   const weaponStats = WEAPONS[weapon];
+  const lowHealth = health / maxHealth < 0.3;
 
   return (
     <div className="flex flex-col items-start gap-3 pointer-events-auto">
@@ -31,10 +32,20 @@ function TopLeftHUD() {
           </span>
         </div>
 
+        {/* Kills counter */}
+        <div className="flex justify-between items-baseline mb-1">
+          <span className="text-[9px] uppercase tracking-[0.2em] text-zinc-400 font-mono">
+            Kills
+          </span>
+          <span className="text-[10px] font-bold text-white/90 font-mono drop-shadow-md">
+            {kills}
+          </span>
+        </div>
+
         {/* Health Bar Component */}
-        <div className="w-full h-1.5 bg-black/50 border border-white/20 overflow-hidden relative mb-1.5">
+        <div className={`w-full h-1.5 bg-black/50 border overflow-hidden relative mb-1.5 ${lowHealth ? "border-red-500/60 animate-pulse" : "border-white/20"}`}>
           <div
-            className="h-full bg-red-500 transition-all duration-300"
+            className={`h-full transition-all duration-300 ${lowHealth ? "bg-red-600" : "bg-red-500"}`}
             style={{ width: `${Math.max(0, (health / maxHealth) * 100)}%` }}
           />
         </div>
@@ -45,7 +56,9 @@ function TopLeftHUD() {
             {weaponStats.name}
           </span>
           <span className="text-[10px] font-bold text-white drop-shadow-md">
-            {isReloading ? "RELOAD" : `${ammo}/${weaponStats.ammoCapacity}`}
+            {isReloading
+              ? "RELOAD"
+              : `${ammo}/${Number.isFinite(reserveAmmo) ? reserveAmmo : "∞"}`}
           </span>
         </div>
         <div className="w-full h-1 bg-black/50 border border-white/20 overflow-hidden relative">
@@ -67,29 +80,145 @@ function TopLeftHUD() {
   );
 }
 
+function GameOverScreen() {
+  const { wave, kills, score, restart } = useGameStore();
+  const [best, setBest] = useState<{ wave: number; kills: number }>({
+    wave: 0,
+    kills: 0,
+  });
+
+  useEffect(() => {
+    try {
+      const prev = JSON.parse(localStorage.getItem("solipsism-best") || "{}");
+      const newBest = {
+        wave: Math.max(prev.wave || 0, wave),
+        kills: Math.max(prev.kills || 0, kills),
+      };
+      localStorage.setItem("solipsism-best", JSON.stringify(newBest));
+      setBest(newBest);
+    } catch {}
+  }, [wave, kills]);
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-red-950/80 backdrop-blur-md pointer-events-auto z-50">
+      <div className="text-center p-8 border border-red-500/20 bg-black/90 max-w-[320px] shadow-2xl">
+        <div className="h-[1px] w-28 bg-red-500/50 mx-auto mb-6"></div>
+        <h1 className="text-3xl font-serif italic text-red-500 tracking-widest mb-3 uppercase">
+          Simulation Failed
+        </h1>
+        <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 mb-6 leading-relaxed">
+          You were overtaken by the system.
+        </p>
+
+        {/* Run stats */}
+        <div className="grid grid-cols-3 gap-2 mb-6 text-white font-mono">
+          <div>
+            <div className="text-lg font-bold">{wave}</div>
+            <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-500">Wave</div>
+          </div>
+          <div>
+            <div className="text-lg font-bold">{kills}</div>
+            <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-500">Kills</div>
+          </div>
+          <div>
+            <div className="text-lg font-bold">{score}</div>
+            <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-500">Recruits</div>
+          </div>
+        </div>
+        <p className="text-[9px] uppercase tracking-[0.25em] text-zinc-500 mb-8 font-mono">
+          Best — Wave {best.wave} / {best.kills} Kills
+        </p>
+
+        <button
+          onClick={restart}
+          className="px-8 py-3 border border-white/30 text-[10px] tracking-[0.25em] uppercase text-white hover:bg-white hover:text-black transition-all cursor-pointer font-mono"
+        >
+          Try Again
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StartMenu() {
+  const setStatus = useGameStore((s) => s.setStatus);
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm pointer-events-auto z-50">
+      <div className="text-center p-8 max-w-[320px]">
+        <div className="h-[1px] w-28 bg-white/25 mx-auto mb-6"></div>
+        <h1 className="text-4xl font-serif italic text-white tracking-widest mb-3 uppercase">
+          Solipsism
+        </h1>
+        <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 mb-8 leading-relaxed">
+          Shoot everyone. Become everyone.
+        </p>
+
+        <div className="text-left text-[9px] uppercase tracking-[0.2em] text-zinc-400 font-mono mb-8 space-y-2">
+          <div className="flex justify-between gap-4">
+            <span className="text-white/80">Move</span>
+            <span>Left Stick / WASD</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-white/80">Aim + Fire</span>
+            <span>Right Stick / Arrows</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-white/80">Reload</span>
+            <span>R</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-white/80">Pause</span>
+            <span>Esc</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-white/80">Recruit</span>
+            <span>Grab the green shard</span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setStatus("playing")}
+          className="px-10 py-3 bg-white text-black text-[11px] tracking-[0.3em] uppercase font-mono hover:bg-white/85 transition-all cursor-pointer animate-pulse"
+        >
+          Begin
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function UI() {
   const {
     status,
+    setStatus,
+    restart,
+    banner,
+    health,
+    maxHealth,
+    muted,
+    toggleMuted,
     setShooting,
-    joystickVector,
     setJoystickVector,
-    shootVector,
     setShootVector,
-    setMinimapCtx,
   } = useGameStore();
 
   const joystickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
   const shootJoystickRef = useRef<HTMLDivElement>(null);
   const shootKnobRef = useRef<HTMLDivElement>(null);
-  const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [showPauseMenu, setShowPauseMenu] = useState(false);
 
+  // Damage flash vignette driven by the store
+  const damageTick = useGameStore((s) => s.damageTick);
+  const [dmgFlash, setDmgFlash] = useState(false);
   useEffect(() => {
-    if (minimapCanvasRef.current) {
-      setMinimapCtx(minimapCanvasRef.current.getContext("2d", { alpha: true }));
-    }
-  }, [setMinimapCtx]);
+    if (!damageTick) return;
+    setDmgFlash(true);
+    const t = setTimeout(() => setDmgFlash(false), 180);
+    return () => clearTimeout(t);
+  }, [damageTick]);
+
+  const lowHealth = status === "playing" && health / maxHealth < 0.3;
 
   const handleTouchStart = (
     e: React.TouchEvent | React.MouseEvent,
@@ -291,7 +420,7 @@ export function UI() {
       } else {
         setShootVector({ x: 0, y: 0 });
         // Spacebar is the only alternative for shooting now
-        if (!keys.space) setShooting(false);
+        if (!(keys as any).space) setShooting(false);
       }
     };
 
@@ -304,6 +433,14 @@ export function UI() {
       if (e.key === "ArrowLeft") keys.left = true;
       if (e.key === "ArrowDown") keys.down = true;
       if (e.key === "ArrowRight") keys.right = true;
+      if (e.key === "r" || e.key === "R") {
+        useGameStore.getState().setReloadRequested(true);
+      }
+      if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+        const st = useGameStore.getState();
+        if (st.status === "playing") st.setStatus("paused");
+        else if (st.status === "paused") st.setStatus("playing");
+      }
       if (e.key === " ") {
         // Spacebar just overrides isShooting if we aren't using arrow keys
         (keys as any).space = true;
@@ -338,27 +475,65 @@ export function UI() {
     };
   }, []);
 
+  const inGame = status === "playing" || status === "paused";
+
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-8 z-10 font-sans select-none">
-      {/* 1. TOP HEADER ROW */}
-      <div className="flex justify-between items-start pointer-events-auto">
-        {/* Top-Left Container */}
-        <TopLeftHUD />
+      {/* Damage flash vignette */}
+      <div
+        className="absolute inset-0 pointer-events-none bg-red-600 transition-opacity duration-150 z-30"
+        style={{ opacity: dmgFlash ? 0.22 : 0 }}
+      />
+      {/* Low health warning vignette */}
+      {lowHealth && (
+        <div className="absolute inset-0 pointer-events-none animate-pulse z-30 shadow-[inset_0_0_90px_rgba(255,0,0,0.45)]" />
+      )}
 
-        {/* Top-Right Container */}
-        <div className="flex flex-col items-end gap-3 pointer-events-auto">
-          {/* Pause Button */}
-          <button
-            onClick={() => setShowPauseMenu(true)}
-            className="h-11 w-11 bg-black/40 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all focus:outline-none"
-          >
-            <div className="flex gap-1.5 justify-center items-center">
-              <div className="w-[3px] h-3.5 bg-white rounded-full"></div>
-              <div className="w-[3px] h-3.5 bg-white rounded-full"></div>
-            </div>
-          </button>
+      {/* 1. TOP HEADER ROW */}
+      {inGame && (
+        <div className="flex justify-between items-start pointer-events-auto">
+          {/* Top-Left Container */}
+          <TopLeftHUD />
+
+          {/* Top-Right Container */}
+          <div className="flex flex-col items-end gap-3 pointer-events-auto">
+            {/* Pause Button */}
+            <button
+              onClick={() => setStatus("paused")}
+              className="h-11 w-11 bg-black/40 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all focus:outline-none"
+            >
+              <div className="flex gap-1.5 justify-center items-center">
+                <div className="w-[3px] h-3.5 bg-white rounded-full"></div>
+                <div className="w-[3px] h-3.5 bg-white rounded-full"></div>
+              </div>
+            </button>
+
+            {/* Mute Button */}
+            <button
+              onClick={toggleMuted}
+              className="h-11 w-11 bg-black/40 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all focus:outline-none text-white text-sm font-mono"
+            >
+              {muted ? "×" : "♪"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* WAVE / EVENT BANNER */}
+      {banner && status === "playing" && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+          <div className="text-center">
+            <div className="h-[1px] w-20 bg-white/40 mx-auto mb-3"></div>
+            <h1 className="text-4xl font-serif italic font-bold text-white tracking-[0.2em] uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] animate-pulse">
+              {banner}
+            </h1>
+            <div className="h-[1px] w-20 bg-white/40 mx-auto mt-3"></div>
+          </div>
+        </div>
+      )}
+
+      {/* START MENU */}
+      {status === "menu" && <StartMenu />}
 
       {/* 2. GAME COMPLETION SCREEN OVERLAY */}
       {status === "won" && (
@@ -373,7 +548,7 @@ export function UI() {
               They all wear the suit now. Consensus achieved.
             </p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={restart}
               className="px-8 py-3 border border-white/30 text-[10px] tracking-[0.25em] uppercase text-white hover:bg-white hover:text-black transition-all cursor-pointer font-mono"
             >
               Restart Simulation
@@ -383,29 +558,10 @@ export function UI() {
       )}
 
       {/* GAME OVER (LOST) SCREEN OVERLAY */}
-      {status === "lost" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-950/80 backdrop-blur-md pointer-events-auto z-50">
-          <div className="text-center p-8 border border-red-500/20 bg-black/90 max-w-[320px] shadow-2xl">
-            {/* Top decorative line */}
-            <div className="h-[1px] w-28 bg-red-500/50 mx-auto mb-6"></div>
-            <h1 className="text-3xl font-serif italic text-red-500 tracking-widest mb-3 uppercase">
-              Simulation Failed
-            </h1>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 mb-8 leading-relaxed">
-              You were overtaken by the system.
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-8 py-3 border border-white/30 text-[10px] tracking-[0.25em] uppercase text-white hover:bg-white hover:text-black transition-all cursor-pointer font-mono"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      )}
+      {status === "lost" && <GameOverScreen />}
 
       {/* PAUSE MENU OVERLAY */}
-      {showPauseMenu && (
+      {status === "paused" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto z-50">
           <div className="text-center p-8 border border-white/20 bg-zinc-950/95 max-w-[280px]">
             <div className="h-[1px] w-16 bg-white/25 mx-auto mb-5"></div>
@@ -414,13 +570,13 @@ export function UI() {
             </h2>
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => setShowPauseMenu(false)}
+                onClick={() => setStatus("playing")}
                 className="w-full py-2.5 bg-white text-black text-[10px] uppercase tracking-[0.2em] font-mono hover:bg-white/90"
               >
                 Resume
               </button>
               <button
-                onClick={() => window.location.reload()}
+                onClick={restart}
                 className="w-full py-2.5 border border-white/20 text-white text-[10px] uppercase tracking-[0.2em] font-mono hover:bg-white/10"
               >
                 Restart Game
@@ -448,57 +604,68 @@ export function UI() {
       )}
 
       {/* 4. BOTTOM CONTROLS ROW */}
-      <div className="flex justify-between items-end mb-3 pointer-events-auto relative z-40">
-        {/* Semi-transparent Glassmorphic Movement Joystick Base */}
-        <div
-          ref={joystickRef}
-          onTouchStart={(e) => handleTouchStart(e, "move")}
-          onMouseDown={(e) => handleTouchStart(e, "move")}
-          onMouseMove={(e) => {
-            if (e.buttons === 1) handleMove(e, "move");
-          }}
-          onTouchMove={(e) => handleMove(e, "move")}
-          onMouseUp={(e) => handleEnd(e, "move")}
-          onTouchEnd={(e) => handleEnd(e, "move")}
-          className="w-24 h-24 rounded-full border border-white/15 bg-white/5 backdrop-blur-md flex items-center justify-center relative touch-none select-none"
-        >
-          {/* Inner ring helper */}
-          <div className="absolute inset-4 rounded-full border border-white/5 pointer-events-none" />
-
-          {/* Joystick Knob (Dynamic motion) */}
+      {inGame && (
+        <div className="flex justify-between items-end mb-3 pointer-events-auto relative z-40">
+          {/* Semi-transparent Glassmorphic Movement Joystick Base */}
           <div
-            ref={knobRef}
-            className="w-10 h-10 rounded-full bg-zinc-100/10 border border-white/35 absolute shadow-lg transition-transform duration-75 active:scale-95"
-            style={{ transform: "translate(0px, 0px)" }}
-          />
-        </div>
-
-        {/* Aiming / Shooting Joystick Base */}
-        <div
-          ref={shootJoystickRef}
-          onTouchStart={(e) => handleTouchStart(e, "shoot")}
-          onMouseDown={(e) => handleTouchStart(e, "shoot")}
-          onMouseMove={(e) => {
-            if (e.buttons === 1) handleMove(e, "shoot");
-          }}
-          onTouchMove={(e) => handleMove(e, "shoot")}
-          onMouseUp={(e) => handleEnd(e, "shoot")}
-          onTouchEnd={(e) => handleEnd(e, "shoot")}
-          className="w-24 h-24 rounded-full border border-white/15 bg-black/25 backdrop-blur-md flex items-center justify-center relative touch-none select-none"
-        >
-          {/* Inner ring helper */}
-          <div className="absolute inset-2 rounded-full border-2 border-white/30 pointer-events-none" />
-
-          {/* Shoot Knob */}
-          <div
-            ref={shootKnobRef}
-            className="w-10 h-10 rounded-full bg-white flex items-center justify-center absolute shadow-lg transition-transform duration-75 active:scale-95"
-            style={{ transform: "translate(0px, 0px)" }}
+            ref={joystickRef}
+            onTouchStart={(e) => handleTouchStart(e, "move")}
+            onMouseDown={(e) => handleTouchStart(e, "move")}
+            onMouseMove={(e) => {
+              if (e.buttons === 1) handleMove(e, "move");
+            }}
+            onTouchMove={(e) => handleMove(e, "move")}
+            onMouseUp={(e) => handleEnd(e, "move")}
+            onTouchEnd={(e) => handleEnd(e, "move")}
+            className="w-24 h-24 rounded-full border border-white/15 bg-white/5 backdrop-blur-md flex items-center justify-center relative touch-none select-none"
           >
-            <div className="w-3 h-3 bg-black rotate-45 pointer-events-none" />
+            {/* Inner ring helper */}
+            <div className="absolute inset-4 rounded-full border border-white/5 pointer-events-none" />
+
+            {/* Joystick Knob (Dynamic motion) */}
+            <div
+              ref={knobRef}
+              className="w-10 h-10 rounded-full bg-zinc-100/10 border border-white/35 absolute shadow-lg transition-transform duration-75 active:scale-95"
+              style={{ transform: "translate(0px, 0px)" }}
+            />
+          </div>
+
+          {/* Reload button for touch play */}
+          <button
+            onTouchStart={() => useGameStore.getState().setReloadRequested(true)}
+            onClick={() => useGameStore.getState().setReloadRequested(true)}
+            className="h-11 w-11 mb-1 bg-black/40 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-all focus:outline-none text-[9px] font-mono text-white tracking-widest"
+          >
+            R
+          </button>
+
+          {/* Aiming / Shooting Joystick Base */}
+          <div
+            ref={shootJoystickRef}
+            onTouchStart={(e) => handleTouchStart(e, "shoot")}
+            onMouseDown={(e) => handleTouchStart(e, "shoot")}
+            onMouseMove={(e) => {
+              if (e.buttons === 1) handleMove(e, "shoot");
+            }}
+            onTouchMove={(e) => handleMove(e, "shoot")}
+            onMouseUp={(e) => handleEnd(e, "shoot")}
+            onTouchEnd={(e) => handleEnd(e, "shoot")}
+            className="w-24 h-24 rounded-full border border-white/15 bg-black/25 backdrop-blur-md flex items-center justify-center relative touch-none select-none"
+          >
+            {/* Inner ring helper */}
+            <div className="absolute inset-2 rounded-full border-2 border-white/30 pointer-events-none" />
+
+            {/* Shoot Knob */}
+            <div
+              ref={shootKnobRef}
+              className="w-10 h-10 rounded-full bg-white flex items-center justify-center absolute shadow-lg transition-transform duration-75 active:scale-95"
+              style={{ transform: "translate(0px, 0px)" }}
+            >
+              <div className="w-3 h-3 bg-black rotate-45 pointer-events-none" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

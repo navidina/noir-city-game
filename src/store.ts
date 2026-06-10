@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { Vector3 } from 'three';
 
-export type GameStatus = 'playing' | 'won' | 'lost';
+export type GameStatus = 'menu' | 'playing' | 'paused' | 'won' | 'lost';
 export type WeaponType = 'pistol' | 'tommy' | 'shotgun';
 
 export interface WeaponStats {
@@ -13,12 +12,13 @@ export interface WeaponStats {
   bulletsPerShot: number;
   spread: number;
   damage: number;
+  reserve: number; // total backup ammo when picked up (Infinity = unlimited)
 }
 
 export const WEAPONS: Record<WeaponType, WeaponStats> = {
-  pistol: { id: 'pistol', name: 'Pistol', fireDelay: 0.22, ammoCapacity: 24, reloadTime: 1.5, bulletsPerShot: 2, spread: 0.05, damage: 1 },
-  tommy: { id: 'tommy', name: 'Tommy Gun', fireDelay: 0.1, ammoCapacity: 45, reloadTime: 2.0, bulletsPerShot: 1, spread: 0.15, damage: 0.8 },
-  shotgun: { id: 'shotgun', name: 'Shotgun', fireDelay: 0.8, ammoCapacity: 8, reloadTime: 1.8, bulletsPerShot: 6, spread: 0.35, damage: 1 },
+  pistol: { id: 'pistol', name: 'Pistol', fireDelay: 0.22, ammoCapacity: 24, reloadTime: 1.5, bulletsPerShot: 2, spread: 0.05, damage: 1, reserve: Infinity },
+  tommy: { id: 'tommy', name: 'Tommy Gun', fireDelay: 0.1, ammoCapacity: 45, reloadTime: 2.0, bulletsPerShot: 1, spread: 0.15, damage: 0.8, reserve: 90 },
+  shotgun: { id: 'shotgun', name: 'Shotgun', fireDelay: 0.8, ammoCapacity: 8, reloadTime: 1.8, bulletsPerShot: 6, spread: 0.35, damage: 1, reserve: 16 },
 };
 
 export interface GameState {
@@ -28,11 +28,21 @@ export interface GameState {
   totalNPCs: number;
   health: number;
   maxHealth: number;
+  kills: number;
+  banner: string | null;
+  damageTick: number;
+  muted: boolean;
+  runId: number;
   setHealth: (health: number) => void;
   setScore: (score: number) => void;
   setWave: (wave: number) => void;
   setTotalNPCs: (count: number) => void;
   setStatus: (status: GameStatus) => void;
+  addKill: () => void;
+  setBanner: (b: string | null) => void;
+  bumpDamageFlash: () => void;
+  toggleMuted: () => void;
+  restart: () => void;
   joystickVector: { x: number; y: number };
   setJoystickVector: (v: { x: number; y: number }) => void;
   shootVector: { x: number; y: number };
@@ -47,22 +57,55 @@ export interface GameState {
   setWeapon: (w: WeaponType) => void;
   ammo: number;
   setAmmo: (a: number) => void;
+  reserveAmmo: number;
+  setReserveAmmo: (a: number) => void;
   isReloading: boolean;
   setReloading: (r: boolean) => void;
+  reloadRequested: boolean;
+  setReloadRequested: (r: boolean) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
-  status: 'playing',
+  status: 'menu',
   score: 0,
   wave: 1,
   totalNPCs: 15, // Start with fewer enemies on wave 1
-  health: 1000,
-  maxHealth: 1000,
+  health: 100,
+  maxHealth: 100,
+  kills: 0,
+  banner: null,
+  damageTick: 0,
+  muted: false,
+  runId: 0,
   setHealth: (health) => set({ health }),
   setScore: (score) => set({ score }),
   setWave: (wave) => set({ wave }),
   setTotalNPCs: (count) => set({ totalNPCs: count }),
   setStatus: (status) => set({ status }),
+  addKill: () => set((s) => ({ kills: s.kills + 1 })),
+  setBanner: (b) => set({ banner: b }),
+  bumpDamageFlash: () => set((s) => ({ damageTick: s.damageTick + 1 })),
+  toggleMuted: () => set((s) => ({ muted: !s.muted })),
+  restart: () =>
+    set((s) => ({
+      runId: s.runId + 1,
+      status: 'playing',
+      score: 0,
+      wave: 1,
+      totalNPCs: 15,
+      health: 100,
+      kills: 0,
+      banner: null,
+      weapon: 'pistol',
+      ammo: WEAPONS.pistol.ammoCapacity,
+      reserveAmmo: Infinity,
+      isReloading: false,
+      reloadRequested: false,
+      isShooting: false,
+      joystickVector: { x: 0, y: 0 },
+      shootVector: { x: 0, y: 0 },
+      playerPosition: [0, 0, 0],
+    })),
   joystickVector: { x: 0, y: 0 },
   setJoystickVector: (v) => set({ joystickVector: v }),
   shootVector: { x: 0, y: 0 },
@@ -77,6 +120,10 @@ export const useGameStore = create<GameState>((set) => ({
   setWeapon: (w) => set({ weapon: w }),
   ammo: 24,
   setAmmo: (a) => set({ ammo: a }),
+  reserveAmmo: Infinity,
+  setReserveAmmo: (a) => set({ reserveAmmo: a }),
   isReloading: false,
-  setReloading: (r) => set({ isReloading: r })
+  setReloading: (r) => set({ isReloading: r }),
+  reloadRequested: false,
+  setReloadRequested: (r) => set({ reloadRequested: r }),
 }));

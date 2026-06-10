@@ -64,6 +64,7 @@ function getNoiseBuffer(ctx: AudioContext): AudioBuffer {
 }
 
 function playShootSound() {
+  if (useGameStore.getState().muted) return;
   try {
     const ctx = getAudioContext();
 
@@ -122,6 +123,7 @@ function playShootSound() {
 }
 
 function playHitSound() {
+  if (useGameStore.getState().muted) return;
   try {
     const ctx = getAudioContext();
     const osc = ctx.createOscillator();
@@ -143,6 +145,7 @@ function playHitSound() {
 }
 
 function playConvertSound() {
+  if (useGameStore.getState().muted) return;
   try {
     const ctx = getAudioContext();
     const osc = ctx.createOscillator();
@@ -271,88 +274,111 @@ export function GameScene() {
   const nextNpcIdRef = useRef(0);
 
   const { wave, setWave, setTotalNPCs } = useGameStore();
+  const status = useGameStore((s) => s.status);
+  const [intermission, setIntermission] = useState(false);
+
+  const spawnWave = (currentWave: number) => {
+    const spawnCount = 10 + currentWave * 5;
+    setTotalNPCs(spawnCount);
+
+    const newNpcs: NPCData[] = [];
+    for (let i = 0; i < spawnCount; i++) {
+      const id = nextNpcIdRef.current++;
+
+      let type: NPCType = "normal";
+      let hp = 4;
+      let scale = 1;
+      let speedMult = 1;
+
+      // Randomly assign types based on wave progress
+      const rand = Math.random();
+      if (currentWave >= 3 && rand < 0.1) {
+        type = "boss";
+        hp = 20;
+        scale = 1.6;
+        speedMult = 0.6; // Bosses are slow
+      } else if (currentWave >= 2 && rand < 0.35) {
+        type = "rusher";
+        hp = 2; // Dies faster
+        scale = 0.9; // Slightly smaller
+        speedMult = 1.9; // Rushers are fast
+      }
+
+      let wType: WeaponType = "pistol";
+      const wRand = Math.random();
+      if (type === "boss") {
+         wType = wRand < 0.5 ? "tommy" : "shotgun";
+      } else if (type === "normal") {
+         if (wRand < 0.15) wType = "tommy";
+         else if (wRand < 0.3) wType = "shotgun";
+      }
+
+      // Spawn away from the player so enemies never pop in on top of them
+      let sx = 0;
+      let sz = 0;
+      for (let attempt = 0; attempt < 12; attempt++) {
+        sx = (Math.random() - 0.5) * 80;
+        sz = (Math.random() - 0.5) * 80;
+        const dx = sx - playerPos.current.x;
+        const dz = sz - playerPos.current.z;
+        if (dx * dx + dz * dz > 18 * 18) break;
+      }
+
+      newNpcs.push({
+        id,
+        position: new Vector3(sx, 0, sz),
+        velocity: new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5)
+          .normalize()
+          .multiplyScalar((2 + Math.random() * 2) * speedMult),
+        converted: false,
+        dead: false,
+        timer: Math.random() * 5,
+        lastShootTime: Math.random() * 2,
+        isShooting: false,
+        isMoving: false,
+        hp: hp,
+        maxHp: hp,
+        type: type,
+        scale: scale,
+        weaponType: wType,
+      });
+    }
+
+    setNpcs((prev) => [...prev, ...newNpcs]);
+  };
 
   useEffect(() => {
+    if (status !== "playing" || intermission) return;
+
     // Determine how many enemies are still alive and unconverted
     const aliveEnemies = npcs.filter(
       (n) => !deadMap[n.id] && !convertedMap[n.id],
     ).length;
 
-    // Check if we need to spawn initial wave or next wave
-    if (
-      useGameStore.getState().status === "playing" &&
-      (npcs.length === 0 || (npcs.length > 0 && aliveEnemies === 0))
-    ) {
-      const currentWave = npcs.length === 0 ? 1 : wave + 1;
-      if (npcs.length > 0) {
-        setWave(currentWave);
-      }
-
-      // Calculate how many enemies to spawn this wave
-      const spawnCount = 10 + currentWave * 5;
-      setTotalNPCs(spawnCount);
-      // Reset score limit based on this wave's spawn count? Or keep cumulative score?
-      // We'll keep score cumulative in HUD, but the total changes.
-
-      const newNpcs: NPCData[] = [];
-      for (let i = 0; i < spawnCount; i++) {
-        const id = nextNpcIdRef.current++;
-
-        let type: NPCType = "normal";
-        let hp = 4;
-        let scale = 1;
-        let speedMult = 1;
-
-        // Randomly assign types based on wave progress
-        const rand = Math.random();
-        if (currentWave >= 3 && rand < 0.1) {
-          type = "boss";
-          hp = 20;
-          scale = 1.6;
-          speedMult = 0.6; // Bosses are slow
-        } else if (currentWave >= 2 && rand < 0.35) {
-          type = "rusher";
-          hp = 2; // Dies faster
-          scale = 0.9; // Slightly smaller
-          speedMult = 1.9; // Rushers are fast
-        }
-
-        let wType: WeaponType = "pistol";
-        const wRand = Math.random();
-        if (type === "boss") {
-           wType = wRand < 0.5 ? "tommy" : "shotgun";
-        } else if (type === "normal") {
-           if (wRand < 0.15) wType = "tommy";
-           else if (wRand < 0.3) wType = "shotgun";
-        }
-
-        newNpcs.push({
-          id,
-          position: new Vector3(
-            (Math.random() - 0.5) * 80,
-            0,
-            (Math.random() - 0.5) * 80,
-          ),
-          velocity: new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5)
-            .normalize()
-            .multiplyScalar((2 + Math.random() * 2) * speedMult),
-          converted: false,
-          dead: false,
-          timer: Math.random() * 5,
-          lastShootTime: Math.random() * 2,
-          isShooting: false,
-          isMoving: false,
-          hp: hp,
-          maxHp: hp,
-          type: type,
-          scale: scale,
-          weaponType: wType,
-        });
-      }
-
-      setNpcs((prev) => [...prev, ...newNpcs]);
+    if (npcs.length === 0) {
+      // Initial wave starts immediately
+      useGameStore.getState().setBanner("WAVE 1");
+      setTimeout(() => {
+        if (useGameStore.getState().banner === "WAVE 1")
+          useGameStore.getState().setBanner(null);
+      }, 1800);
+      spawnWave(1);
+    } else if (aliveEnemies === 0) {
+      // Wave cleared: short intermission with an announcement before the next one
+      const nextWave = wave + 1;
+      setIntermission(true);
+      useGameStore.getState().setBanner("WAVE CLEARED");
+      setTimeout(() => {
+        useGameStore.getState().setBanner(`WAVE ${nextWave}`);
+      }, 1500);
+      setTimeout(() => {
+        useGameStore.getState().setBanner(null);
+        setWave(nextWave);
+        spawnWave(nextWave);
+        setIntermission(false);
+      }, 3000);
     }
-  }, [npcs, convertedMap, deadMap, wave, setWave, setTotalNPCs]);
+  }, [npcs, convertedMap, deadMap, wave, status, intermission, setWave, setTotalNPCs]);
 
   // High-performance bullet pool
   const bulletMeshesPoolRef = useRef<(Mesh | null)[]>([]);
@@ -371,6 +397,8 @@ export function GameScene() {
   );
   const nextBulletIdxRef = useRef(0);
   const lastFireTimeRef = useRef(0);
+  const comboRef = useRef(0);
+  const lastKillTimeRef = useRef(-10);
 
   // Enemy bullet pool
   const MAX_ENEMY_BULLETS = 60;
@@ -495,6 +523,17 @@ export function GameScene() {
     const jy = joystickVector.y;
 
     const gameStatus = useGameStore.getState().status;
+
+    // Freeze the entire simulation when not actively playing (menu, pause, game over)
+    if (gameStatus !== "playing") {
+      camera.position.lerp(
+        _cameraTarget.copy(playerPos.current).add(_cameraOffset),
+        0.1,
+      );
+      camera.lookAt(playerPos.current);
+      return;
+    }
+
     let isMoving = false;
     let isRunning = false;
 
@@ -547,18 +586,20 @@ export function GameScene() {
             
             if (p.type === "health") {
               const state = useGameStore.getState();
-              state.setHealth(Math.min(state.maxHealth, state.health + 200));
-              showMsg(p.position, "+HEALTH", "#ffffff");
+              state.setHealth(Math.min(state.maxHealth, state.health + 30));
+              showMsg(p.position, "+30 HP", "#ffffff");
             } else if (p.type === "weapon_tommy") {
               const state = useGameStore.getState();
               state.setWeapon("tommy");
               state.setAmmo(WEAPONS.tommy.ammoCapacity);
+              state.setReserveAmmo(WEAPONS.tommy.reserve);
               state.setReloading(false);
               showMsg(p.position, "TOMMY GUN", "#ffaa00");
             } else if (p.type === "weapon_shotgun") {
               const state = useGameStore.getState();
               state.setWeapon("shotgun");
               state.setAmmo(WEAPONS.shotgun.ammoCapacity);
+              state.setReserveAmmo(WEAPONS.shotgun.reserve);
               state.setReloading(false);
               showMsg(p.position, "SHOTGUN", "#ff5500");
             } else if (p.type === "recruit" && p.targetNpcId !== undefined) {
@@ -665,14 +706,43 @@ export function GameScene() {
     const gState = useGameStore.getState();
     const currentWeaponStats = WEAPONS[gState.weapon];
 
-    // Check automatic reloading
-    if (gState.ammo <= 0 && !gState.isReloading && gameStatus === "playing") {
+    const startReload = () => {
       gState.setReloading(true);
       showMsg(playerPos.current, "RELOADING...", "#ffff00");
       setTimeout(() => {
-        useGameStore.getState().setAmmo(WEAPONS[useGameStore.getState().weapon].ammoCapacity);
-        useGameStore.getState().setReloading(false);
+        const s = useGameStore.getState();
+        const cap = WEAPONS[s.weapon].ammoCapacity;
+        const take = Math.min(cap - s.ammo, s.reserveAmmo);
+        s.setAmmo(s.ammo + take);
+        if (Number.isFinite(s.reserveAmmo)) {
+          s.setReserveAmmo(s.reserveAmmo - take);
+        }
+        s.setReloading(false);
       }, currentWeaponStats.reloadTime * 1000);
+    };
+
+    // Manual reload request (R key / reload button)
+    if (gState.reloadRequested) {
+      gState.setReloadRequested(false);
+      if (
+        !gState.isReloading &&
+        gState.ammo < currentWeaponStats.ammoCapacity &&
+        gState.reserveAmmo > 0
+      ) {
+        startReload();
+      }
+    }
+
+    // Check automatic reloading; special weapons fall back to the pistol when dry
+    if (gState.ammo <= 0 && !gState.isReloading) {
+      if (gState.weapon !== "pistol" && gState.reserveAmmo <= 0) {
+        gState.setWeapon("pistol");
+        gState.setAmmo(WEAPONS.pistol.ammoCapacity);
+        gState.setReserveAmmo(Infinity);
+        showMsg(playerPos.current, "OUT OF AMMO", "#ff5555");
+      } else {
+        startReload();
+      }
     }
 
     if (
@@ -814,6 +884,18 @@ export function GameScene() {
               setDeadMap((prev) => ({ ...prev, [npcId]: true }));
               triggerHitParticles(npc.position, bullet.direction, "blood");
 
+              // Kill combo: chained takedowns reward floating combo callouts
+              if (time - lastKillTimeRef.current < 2.5) {
+                comboRef.current += 1;
+              } else {
+                comboRef.current = 1;
+              }
+              lastKillTimeRef.current = time;
+              useGameStore.getState().addKill();
+              if (comboRef.current >= 2) {
+                showMsg(npc.position, `COMBO x${comboRef.current}`, "#ffdd00");
+              }
+
               // Always drop recruit pickup when originally killed
               const pId1 = nextPickupIdRef.current++;
               setPickups(prev => [...prev, { id: pId1, position: npc.position.clone(), active: true, type: "recruit", targetNpcId: npc.id }]);
@@ -887,6 +969,7 @@ export function GameScene() {
         triggerHitParticles(playerPos.current, bullet.direction, "blood");
         playHitSound();
         cameraShakeRef.current = 0.5;
+        useGameStore.getState().bumpDamageFlash();
         showMsg(playerPos.current, "-5 HP", "#ff0000");
 
         const currentHealth = useGameStore.getState().health;
@@ -1218,10 +1301,11 @@ export function GameScene() {
               triggerHitParticles(playerPos.current, _npcDir, "blood");
               playHitSound();
               cameraShakeRef.current = 1.0;
-              showMsg(playerPos.current, "-30 HP", "#ff0000");
+              useGameStore.getState().bumpDamageFlash();
+              showMsg(playerPos.current, "-20 HP", "#ff0000");
 
               const currentHealth = useGameStore.getState().health;
-              const newHealth = currentHealth - 30; // High melee damage
+              const newHealth = currentHealth - 20; // High melee damage
               useGameStore.getState().setHealth(Math.max(0, newHealth));
 
               if (newHealth <= 0) {
