@@ -21,7 +21,7 @@ const MAX_ACTIVE_BULLETS = 70;
 const MAX_PARTICLES = 250;
 
 // Reusable vectors for high-performance useFrame loop (avoids GC pauses)
-const _cameraOffset = new Vector3(15, 20, 15);
+const _cameraOffset = new Vector3(21, 29, 21);
 const _forward = new Vector3();
 const _right = new Vector3();
 const _moveDir = new Vector3();

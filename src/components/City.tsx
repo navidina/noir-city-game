@@ -58,8 +58,11 @@ function Building({ b }: { b: BuildingData }) {
   useFrame((state) => {
     // Fade the building when it stands between the camera and the player.
     // Camera looks at the player from +x/+z, roughly (px+15, py+20, pz+15).
-    const playerXApprox = state.camera.position.x - 15;
-    const playerZApprox = state.camera.position.z - 15;
+    // Fade the building when it stands between the camera and the player.
+    // Camera looks at the player from +x/+z by the offset below, so the player
+    // is roughly camera.position - (21, ·, 21).
+    const playerXApprox = state.camera.position.x - 21;
+    const playerZApprox = state.camera.position.z - 21;
 
     const isOccluding =
       b.h > 6 &&
@@ -67,16 +70,17 @@ function Building({ b }: { b: BuildingData }) {
       b.x < state.camera.position.x + 5 &&
       b.z > playerZApprox - b.d / 2 &&
       b.z < state.camera.position.z + 5 &&
-      (Math.abs(b.x - playerXApprox) < b.w / 2 + 4.5 ||
-        Math.abs(b.z - playerZApprox) < b.d / 2 + 4.5);
+      (Math.abs(b.x - playerXApprox) < b.w / 2 + 6.0 ||
+        Math.abs(b.z - playerZApprox) < b.d / 2 + 6.0);
 
-    const targetOpacity = isOccluding ? 0.22 : 1.0;
+    // 90% transparent (a faint ghost) so the player and street stay readable
+    const targetOpacity = isOccluding ? 0.1 : 1.0;
 
     materialsRef.current.forEach((mat) => {
       if (mat) {
-        mat.opacity += (targetOpacity - mat.opacity) * 0.12;
+        mat.opacity += (targetOpacity - mat.opacity) * 0.14;
         mat.transparent = true;
-        mat.depthWrite = mat.opacity > 0.6;
+        mat.depthWrite = mat.opacity > 0.55;
       }
     });
   });
@@ -692,13 +696,13 @@ export function City() {
         </group>
       ))}
 
-      {/* 13. Lighting: soft, near-shadowless studio light for the clay look —
-          high ambient + hemisphere fill, gentle key for soft contact shadows */}
-      <ambientLight intensity={0.95} color="#eef4fb" />
-      <hemisphereLight args={["#ffffff", "#c4cedb", 0.85]} />
+      {/* 13. Lighting: soft studio key with enough directional punch to give the
+          clay forms readable shading/shadow so buildings separate from the haze */}
+      <ambientLight intensity={0.72} color="#eef4fb" />
+      <hemisphereLight args={["#ffffff", "#bcc7d6", 0.55]} />
       <directionalLight
         position={[30, 46, 22]}
-        intensity={1.15}
+        intensity={1.75}
         color="#ffffff"
         castShadow
         shadow-mapSize-width={2048}

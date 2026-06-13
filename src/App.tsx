@@ -14,7 +14,7 @@ export default function App() {
         <div className="absolute inset-0">
           <Canvas shadows camera={{ position: [15, 20, 15], fov: 40 }}>
             <color attach="background" args={['#dbe5ef']} />
-            <fog attach="fog" args={['#dbe5ef', 30, 125]} />
+            <fog attach="fog" args={['#dbe5ef', 46, 180]} />
             <GameScene key={runId} />
           </Canvas>
 
