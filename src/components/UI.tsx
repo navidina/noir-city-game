@@ -21,13 +21,13 @@ function TopLeftHUD() {
       <div className="px-2 py-1 w-[160px]">
         {/* Simple Score */}
         <div className="flex justify-between items-baseline mb-1">
-          <h2 className="text-2xl font-serif italic font-bold tracking-tight text-white flex justify-start items-baseline gap-1.5 drop-shadow-md">
+          <h2 className="text-2xl font-sans font-black tracking-tight text-white flex justify-start items-baseline gap-1.5 drop-shadow-md">
             {score.toString()}
             <span className="text-sm font-sans font-normal text-white/80 uppercase">
               / {totalNPCs}
             </span>
           </h2>
-          <span className="text-sm font-bold text-red-500 uppercase tracking-widest drop-shadow-md">
+          <span className="text-sm font-bold text-[#ff5a4d] uppercase tracking-widest drop-shadow-md">
             WAVE {wave}
           </span>
         </div>
@@ -43,16 +43,16 @@ function TopLeftHUD() {
         </div>
 
         {/* Health Bar Component */}
-        <div className={`w-full h-1.5 bg-black/50 border overflow-hidden relative mb-1.5 ${lowHealth ? "border-red-500/60 animate-pulse" : "border-white/20"}`}>
+        <div className={`w-full h-1.5 bg-black/40 border overflow-hidden relative mb-1.5 ${lowHealth ? "border-[#ff5a4d]/70 animate-pulse" : "border-white/25"}`}>
           <div
-            className={`h-full transition-all duration-300 ${lowHealth ? "bg-red-600" : "bg-red-500"}`}
+            className="h-full transition-all duration-300 bg-[#ff5a4d]"
             style={{ width: `${Math.max(0, (health / maxHealth) * 100)}%` }}
           />
         </div>
 
         {/* Ammo Bar Component */}
         <div className="flex justify-between items-baseline mb-0.5">
-          <span className="text-[10px] font-bold text-yellow-400 capitalize tracking-wider drop-shadow-md">
+          <span className="text-[10px] font-bold text-[#3d9bff] capitalize tracking-wider drop-shadow-md">
             {weaponStats.name}
           </span>
           <span className="text-[10px] font-bold text-white drop-shadow-md">
@@ -61,9 +61,9 @@ function TopLeftHUD() {
               : `${ammo}/${Number.isFinite(reserveAmmo) ? reserveAmmo : "∞"}`}
           </span>
         </div>
-        <div className="w-full h-1 bg-black/50 border border-white/20 overflow-hidden relative">
+        <div className="w-full h-1 bg-black/40 border border-white/25 overflow-hidden relative">
           <div
-            className={`h-full transition-all duration-300 ${isReloading ? "bg-yellow-200 animate-pulse" : "bg-yellow-400"}`}
+            className={`h-full transition-all duration-300 ${isReloading ? "bg-[#86c4ff] animate-pulse" : "bg-[#3d9bff]"}`}
             style={{ width: `${Math.max(0, (ammo / weaponStats.ammoCapacity) * 100)}%` }}
           />
         </div>
@@ -74,7 +74,7 @@ function TopLeftHUD() {
         ref={minimapCanvasRef}
         width={90}
         height={90}
-        className="border border-white/20 bg-black/40 backdrop-blur-md rounded-md"
+        className="border border-[#10141b]/15 bg-white/35 backdrop-blur-md rounded-md"
       />
     </div>
   );
@@ -91,7 +91,7 @@ function UpgradeScreen() {
     <div className="absolute inset-0 flex items-center justify-center bg-black/85 backdrop-blur-md pointer-events-auto z-50">
       <div className="text-center p-6 max-w-[340px] w-full">
         <div className="h-[1px] w-28 bg-white/25 mx-auto mb-5"></div>
-        <h2 className="text-xl font-serif italic text-white tracking-[0.2em] uppercase mb-1">
+        <h2 className="text-xl font-sans font-black text-white tracking-tight uppercase mb-1">
           Wave {wave} Cleared
         </h2>
         <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-400 mb-6 font-mono">
@@ -105,7 +105,7 @@ function UpgradeScreen() {
               onClick={() => chooseUpgrade(u.id)}
               className="group w-full text-left px-5 py-4 border border-white/20 bg-zinc-950/90 hover:bg-white hover:text-black transition-all cursor-pointer flex items-center gap-4"
             >
-              <span className="text-2xl font-serif text-yellow-400 group-hover:text-black w-8 text-center shrink-0">
+              <span className="text-2xl font-sans font-black text-[#3d9bff] group-hover:text-black w-8 text-center shrink-0">
                 {u.icon}
               </span>
               <span>
@@ -176,10 +176,10 @@ function GameOverScreen() {
   }, [wave, kills]);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-red-950/80 backdrop-blur-md pointer-events-auto z-50">
-      <div className="text-center p-8 border border-red-500/20 bg-black/90 max-w-[320px] shadow-2xl">
-        <div className="h-[1px] w-28 bg-red-500/50 mx-auto mb-6"></div>
-        <h1 className="text-3xl font-serif italic text-red-500 tracking-widest mb-3 uppercase">
+    <div className="absolute inset-0 flex items-center justify-center bg-[#10141b]/85 backdrop-blur-md pointer-events-auto z-50">
+      <div className="text-center p-8 border border-[#ff5a4d]/25 bg-[#0d1118]/92 max-w-[320px] shadow-2xl">
+        <div className="h-[1px] w-28 bg-[#ff5a4d]/50 mx-auto mb-6"></div>
+        <h1 className="text-3xl font-sans font-black text-[#ff5a4d] tracking-tight mb-3 uppercase">
           Simulation Failed
         </h1>
         <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 mb-6 leading-relaxed">
@@ -223,7 +223,7 @@ function StartMenu() {
     <div className="absolute inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm pointer-events-auto z-50">
       <div className="text-center p-8 max-w-[320px]">
         <div className="h-[1px] w-28 bg-white/25 mx-auto mb-6"></div>
-        <h1 className="text-4xl font-serif italic text-white tracking-widest mb-3 uppercase">
+        <h1 className="text-5xl font-sans font-black text-white tracking-tight mb-3 uppercase">
           Solipsism
         </h1>
         <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 mb-8 leading-relaxed">
@@ -564,12 +564,12 @@ export function UI() {
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-8 z-10 font-sans select-none">
       {/* Damage flash vignette */}
       <div
-        className="absolute inset-0 pointer-events-none bg-red-600 transition-opacity duration-150 z-30"
-        style={{ opacity: dmgFlash ? 0.22 : 0 }}
+        className="absolute inset-0 pointer-events-none bg-[#ff5a4d] transition-opacity duration-150 z-30"
+        style={{ opacity: dmgFlash ? 0.2 : 0 }}
       />
       {/* Low health warning vignette */}
       {lowHealth && (
-        <div className="absolute inset-0 pointer-events-none animate-pulse z-30 shadow-[inset_0_0_90px_rgba(255,0,0,0.45)]" />
+        <div className="absolute inset-0 pointer-events-none animate-pulse z-30 shadow-[inset_0_0_90px_rgba(255,90,77,0.45)]" />
       )}
 
       {/* 1. TOP HEADER ROW */}
@@ -607,7 +607,7 @@ export function UI() {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
           <div className="text-center">
             <div className="h-[1px] w-20 bg-white/40 mx-auto mb-3"></div>
-            <h1 className="text-4xl font-serif italic font-bold text-white tracking-[0.2em] uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] animate-pulse">
+            <h1 className="text-4xl font-sans font-black text-white tracking-tight uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)] animate-pulse">
               {banner}
             </h1>
             <div className="h-[1px] w-20 bg-white/40 mx-auto mt-3"></div>
@@ -627,7 +627,7 @@ export function UI() {
           <div className="text-center p-8 border border-white/10 bg-black/90 max-w-[320px] shadow-2xl">
             {/* Top decorative line */}
             <div className="h-[1px] w-28 bg-white/25 mx-auto mb-6"></div>
-            <h1 className="text-3xl font-serif italic text-white tracking-widest mb-3 uppercase">
+            <h1 className="text-3xl font-sans font-black text-white tracking-tight mb-3 uppercase">
               City Conquered
             </h1>
             <p className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 mb-8 leading-relaxed">
@@ -651,7 +651,7 @@ export function UI() {
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto z-50">
           <div className="text-center p-8 border border-white/20 bg-zinc-950/95 max-w-[280px]">
             <div className="h-[1px] w-16 bg-white/25 mx-auto mb-5"></div>
-            <h2 className="text-2xl font-serif italic text-white tracking-widest mb-6">
+            <h2 className="text-2xl font-sans font-black text-white tracking-tight mb-6">
               SYSTEM PAUSED
             </h2>
             <div className="flex flex-col gap-3">

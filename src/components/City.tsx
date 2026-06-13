@@ -6,40 +6,43 @@ import { BUILDINGS, SKYLINE, BuildingData } from "../utils/buildings";
 
 // ---------------------------------------------------------------------------
 // Shared materials (module-level: one allocation for the whole city)
+// "Clay blueprint" palette: matte cool off-white forms, two accent hues only
+// (coral + electric blue), near-zero metalness so everything reads as a soft
+// architectural model fading into a pale blue haze.
 // ---------------------------------------------------------------------------
-const asphaltMat = new MeshStandardMaterial({ color: "#55524c", roughness: 0.9, metalness: 0.05 });
-const asphaltSideMat = new MeshStandardMaterial({ color: "#625f58", roughness: 0.9 });
-const sidewalkMat = new MeshStandardMaterial({ color: "#a6a094", roughness: 0.8 });
-const curbMat = new MeshStandardMaterial({ color: "#8d877c", roughness: 0.6 });
-const paintWhiteMat = new MeshStandardMaterial({ color: "#d9d4c9", roughness: 0.8 });
-const paintYellowMat = new MeshStandardMaterial({ color: "#c9a23a", roughness: 0.7 });
-const metalDarkMat = new MeshStandardMaterial({ color: "#26262a", roughness: 0.45, metalness: 0.6 });
-const metalMidMat = new MeshStandardMaterial({ color: "#3c3c40", roughness: 0.5, metalness: 0.5 });
-const ironMat = new MeshStandardMaterial({ color: "#1a1a1a", roughness: 0.85, metalness: 0.7 });
-const trunkMat = new MeshStandardMaterial({ color: "#4a3a2a", roughness: 0.9 });
-const leafMat = new MeshStandardMaterial({ color: "#5d6b40", roughness: 0.9 });
-const leafDarkMat = new MeshStandardMaterial({ color: "#4d5a35", roughness: 0.9 });
-const planterMat = new MeshStandardMaterial({ color: "#7c766c", roughness: 0.8 });
-const hydrantMat = new MeshStandardMaterial({ color: "#a8352c", roughness: 0.5 });
-const benchWoodMat = new MeshStandardMaterial({ color: "#6d5638", roughness: 0.85 });
-const carGlassMat = new MeshStandardMaterial({ color: "#1d2630", roughness: 0.1, metalness: 0.8 });
-const tireMat = new MeshStandardMaterial({ color: "#141414", roughness: 0.9 });
-const taxiYellowMat = new MeshStandardMaterial({ color: "#d8a017", roughness: 0.5 });
-const acUnitMat = new MeshStandardMaterial({ color: "#6f6a62", roughness: 0.8 });
-const waterTowerMat = new MeshStandardMaterial({ color: "#5a4632", roughness: 0.9 });
-const billboardPanelMat = new MeshStandardMaterial({ color: "#181818", roughness: 0.6 });
-const billboardArtMat = new MeshStandardMaterial({ color: "#e8e2d4", roughness: 0.7 });
-const billboardRedMat = new MeshStandardMaterial({ color: "#9c2727", roughness: 0.6 });
-const lightRedMat = new MeshStandardMaterial({ color: "#5c1d1d", emissive: "#ff3b30", emissiveIntensity: 0.7 });
-const lightAmberMat = new MeshStandardMaterial({ color: "#5c481d", emissive: "#cc8800", emissiveIntensity: 0.15 });
-const lightGreenMat = new MeshStandardMaterial({ color: "#1d4a2a", emissive: "#22aa55", emissiveIntensity: 0.15 });
-const skylineMat = new MeshStandardMaterial({ color: "#8f897e", roughness: 0.8 });
-const skylineGlassMat = new MeshStandardMaterial({ color: "#7d828a", roughness: 0.5, metalness: 0.4 });
+const asphaltMat = new MeshStandardMaterial({ color: "#c4ccd6", roughness: 0.95, metalness: 0 });
+const asphaltSideMat = new MeshStandardMaterial({ color: "#ccd3dc", roughness: 0.95, metalness: 0 });
+const sidewalkMat = new MeshStandardMaterial({ color: "#e7ebf0", roughness: 0.95, metalness: 0 });
+const curbMat = new MeshStandardMaterial({ color: "#d2d8e0", roughness: 0.9, metalness: 0 });
+const paintWhiteMat = new MeshStandardMaterial({ color: "#f4f6f9", roughness: 0.85, metalness: 0 });
+const paintYellowMat = new MeshStandardMaterial({ color: "#e7c98f", roughness: 0.85, metalness: 0 });
+const metalDarkMat = new MeshStandardMaterial({ color: "#3a4150", roughness: 0.7, metalness: 0.2 });
+const metalMidMat = new MeshStandardMaterial({ color: "#9aa3b0", roughness: 0.7, metalness: 0.2 });
+const ironMat = new MeshStandardMaterial({ color: "#aeb6c1", roughness: 0.85, metalness: 0.1 });
+const trunkMat = new MeshStandardMaterial({ color: "#b9bcc5", roughness: 0.95, metalness: 0 });
+const leafMat = new MeshStandardMaterial({ color: "#cfd6de", roughness: 0.95, metalness: 0 });
+const leafDarkMat = new MeshStandardMaterial({ color: "#c2cad4", roughness: 0.95, metalness: 0 });
+const planterMat = new MeshStandardMaterial({ color: "#d8dde4", roughness: 0.95, metalness: 0 });
+const hydrantMat = new MeshStandardMaterial({ color: "#ff5a4d", roughness: 0.65, metalness: 0 });
+const benchWoodMat = new MeshStandardMaterial({ color: "#c7ccd4", roughness: 0.95, metalness: 0 });
+const carGlassMat = new MeshStandardMaterial({ color: "#aebccb", roughness: 0.25, metalness: 0.3 });
+const tireMat = new MeshStandardMaterial({ color: "#454d5b", roughness: 0.9, metalness: 0 });
+const taxiYellowMat = new MeshStandardMaterial({ color: "#e9d49a", roughness: 0.7, metalness: 0 });
+const acUnitMat = new MeshStandardMaterial({ color: "#d4d9e1", roughness: 0.9, metalness: 0 });
+const waterTowerMat = new MeshStandardMaterial({ color: "#cfd5de", roughness: 0.95, metalness: 0 });
+const billboardPanelMat = new MeshStandardMaterial({ color: "#aab3c0", roughness: 0.6, metalness: 0.1 });
+const billboardArtMat = new MeshStandardMaterial({ color: "#eef2f7", roughness: 0.7, metalness: 0 });
+const billboardRedMat = new MeshStandardMaterial({ color: "#ff5a4d", roughness: 0.6, metalness: 0, emissive: "#ff5a4d", emissiveIntensity: 0.12 });
+const lightRedMat = new MeshStandardMaterial({ color: "#ff5a4d", emissive: "#ff5a4d", emissiveIntensity: 0.9 });
+const lightAmberMat = new MeshStandardMaterial({ color: "#cfd6de", emissive: "#ffffff", emissiveIntensity: 0.0 });
+const lightGreenMat = new MeshStandardMaterial({ color: "#3d9bff", emissive: "#3d9bff", emissiveIntensity: 0.7 });
+const skylineMat = new MeshStandardMaterial({ color: "#dde4ec", roughness: 0.95, metalness: 0 });
+const skylineGlassMat = new MeshStandardMaterial({ color: "#d6dfea", roughness: 0.6, metalness: 0.15 });
 
 const FACADE_COLORS: Record<string, string[]> = {
-  glass: ["#7e8a93", "#6f7c88", "#88929a"],
-  concrete: ["#948a7c", "#877d70", "#a3978a"],
-  brick: ["#8a5d4a", "#796f62", "#6b6155", "#94705c"],
+  glass: ["#e3e9f1", "#dae2ec", "#e8edf4"],
+  concrete: ["#e6eaf0", "#dde2ea", "#eef1f6"],
+  brick: ["#dfe1e8", "#d8dce4", "#e4e7ed", "#dbdfe7"],
 };
 
 // ---------------------------------------------------------------------------
@@ -99,9 +102,9 @@ function Building({ b }: { b: BuildingData }) {
       Math.max(0, Math.floor((lowerH - groundClear - 0.8) / rowStep)),
     );
     const winColors = isGlass
-      ? ["#39424d", "#46525e", "#2f3841"]
-      : ["#3a3f46", "#2f343b", "#494f57"];
-    const litColor = "#c8b386";
+      ? ["#b8c4d3", "#c4cfdc", "#aebccd"]
+      : ["#c2c9d4", "#cdd3dd", "#b7bfcc"];
+    const litColor = "#86c4ff"; // sparse electric-blue lit windows
 
     const facesSpec = [
       { axis: "z" as const, span: b.w },
@@ -176,7 +179,7 @@ function Building({ b }: { b: BuildingData }) {
               position={[b.x + upperW * f, lowerH + upperH / 2, b.z + upperD / 2 + 0.02]}
             >
               <boxGeometry args={[0.08, upperH * 0.9, 0.04]} />
-              <meshStandardMaterial ref={reg} color="#34383d" roughness={0.4} metalness={0.5} />
+              <meshStandardMaterial ref={reg} color="#aab4c2" roughness={0.5} metalness={0.15} />
             </mesh>
           ))}
         </>
@@ -197,7 +200,7 @@ function Building({ b }: { b: BuildingData }) {
             (b.tiered ? upperD : b.d) + 0.15,
           ]}
         />
-        <meshStandardMaterial ref={reg} color="#5d574e" roughness={0.8} />
+        <meshStandardMaterial ref={reg} color="#cdd4dd" roughness={0.9} />
       </mesh>
 
       {/* Rooftop AC units on low/mid buildings */}
@@ -268,15 +271,15 @@ function Building({ b }: { b: BuildingData }) {
       {/* Street-level storefront with awning on brick/concrete blocks */}
       {b.kind !== "glass" && (
         <group position={[b.x, 0, b.z + b.d / 2]}>
-          {/* Dark glass shopfront */}
+          {/* Glass shopfront */}
           <mesh position={[0, 1.0, 0.03]}>
             <boxGeometry args={[b.w * 0.72, 1.7, 0.1]} />
-            <meshStandardMaterial ref={reg} color="#23282e" roughness={0.15} metalness={0.6} />
+            <meshStandardMaterial ref={reg} color="#aebccb" roughness={0.25} metalness={0.3} />
           </mesh>
           {/* Door frame */}
           <mesh position={[b.w * 0.22, 0.95, 0.09]}>
             <boxGeometry args={[0.75, 1.6, 0.04]} />
-            <meshStandardMaterial ref={reg} color="#15181c" roughness={0.4} />
+            <meshStandardMaterial ref={reg} color="#8893a3" roughness={0.5} />
           </mesh>
           {/* Awning */}
           <mesh position={[0, 2.25, 0.5]} rotation={[0.35, 0, 0]}>
@@ -286,7 +289,7 @@ function Building({ b }: { b: BuildingData }) {
           {/* Shop sign band */}
           <mesh position={[0, 2.75, 0.06]}>
             <boxGeometry args={[b.w * 0.6, 0.45, 0.08]} />
-            <meshStandardMaterial ref={reg} color="#1d1d1f" roughness={0.6} />
+            <meshStandardMaterial ref={reg} color={b.awningColor} roughness={0.6} />
           </mesh>
         </group>
       )}
@@ -637,7 +640,7 @@ export function City() {
         </group>
       ))}
       {/* Newspaper boxes near the crossing */}
-      {[["#9c2727", -8.2], ["#2e3a55", -8.9], ["#6b5328", -9.6]].map(([c, x], i) => (
+      {[["#ff5a4d", -8.2], ["#3d9bff", -8.9], ["#9aa3b0", -9.6]].map(([c, x], i) => (
         <mesh key={`news-${i}`} position={[x as number, 0.35, -15.4]} castShadow>
           <boxGeometry args={[0.4, 0.6, 0.4]} />
           <meshStandardMaterial color={c as string} roughness={0.6} />
@@ -689,22 +692,23 @@ export function City() {
         </group>
       ))}
 
-      {/* 13. Lighting: warm afternoon sun with long crisp shadows */}
-      <ambientLight intensity={0.5} color="#ebe7dd" />
-      <hemisphereLight args={["#fdf6e8", "#7d766a", 0.45]} />
+      {/* 13. Lighting: soft, near-shadowless studio light for the clay look —
+          high ambient + hemisphere fill, gentle key for soft contact shadows */}
+      <ambientLight intensity={0.95} color="#eef4fb" />
+      <hemisphereLight args={["#ffffff", "#c4cedb", 0.85]} />
       <directionalLight
-        position={[28, 42, 16]}
-        intensity={2.2}
-        color="#fff6e8"
+        position={[30, 46, 22]}
+        intensity={1.15}
+        color="#ffffff"
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
-        shadow-camera-far={160}
+        shadow-camera-far={170}
         shadow-camera-left={-55}
         shadow-camera-right={55}
         shadow-camera-top={55}
         shadow-camera-bottom={-55}
-        shadow-bias={-0.0008}
+        shadow-bias={-0.0009}
       />
     </group>
   );

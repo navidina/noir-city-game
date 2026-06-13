@@ -525,11 +525,12 @@ export function GameScene() {
       );
 
       if (type === "blood") {
-        p.color = Math.random() > 0.4 ? "#ff0033" : "#aa0000";
+        // Clean impact debris: coral spark + pale clay chips (no gore)
+        p.color = Math.random() > 0.45 ? "#ff5a4d" : "#cdd6e0";
       } else if (type === "convert") {
-        p.color = Math.random() > 0.5 ? "#00ffff" : "#ffffff";
+        p.color = Math.random() > 0.5 ? "#3d9bff" : "#cfe6ff";
       } else {
-        p.color = "#ffff00";
+        p.color = "#ff5a4d";
       }
 
       p.size = 0.08 + Math.random() * 0.14; // Multi-size particles
@@ -740,14 +741,14 @@ export function GameScene() {
             state.setAmmo(WEAPONS.tommy.ammoCapacity);
             state.setReserveAmmo(WEAPONS.tommy.reserve);
             state.setReloading(false);
-            showMsg(p.position, "TOMMY GUN", "#ffaa00");
+            showMsg(p.position, "TOMMY GUN", "#ff8a5e");
           } else if (p.type === "weapon_shotgun") {
             const state = useGameStore.getState();
             state.setWeapon("shotgun");
             state.setAmmo(WEAPONS.shotgun.ammoCapacity);
             state.setReserveAmmo(WEAPONS.shotgun.reserve);
             state.setReloading(false);
-            showMsg(p.position, "SHOTGUN", "#ff5500");
+            showMsg(p.position, "SHOTGUN", "#ff5a4d");
           } else if (p.type === "recruit" && p.targetNpcId !== undefined) {
             const targetNpc = npcs.find((n) => n.id === p.targetNpcId);
             if (targetNpc) {
@@ -767,7 +768,7 @@ export function GameScene() {
                 new Vector3(0, 1, 0),
                 "convert",
               );
-              showMsg(targetNpc.position, "+1 RECRUIT", "#00ffaa");
+              showMsg(targetNpc.position, "+1 RECRUIT", "#3d9bff");
 
               const currentScore = useGameStore.getState().score;
               setScore(currentScore + 1);
@@ -808,7 +809,7 @@ export function GameScene() {
 
     const startReload = () => {
       gState.setReloading(true);
-      showMsg(playerPos.current, "RELOADING...", "#ffff00");
+      showMsg(playerPos.current, "RELOADING...", "#86c4ff");
       setTimeout(() => {
         const s = useGameStore.getState();
         const cap = WEAPONS[s.weapon].ammoCapacity;
@@ -839,7 +840,7 @@ export function GameScene() {
         gState.setWeapon("pistol");
         gState.setAmmo(WEAPONS.pistol.ammoCapacity);
         gState.setReserveAmmo(Infinity);
-        showMsg(playerPos.current, "OUT OF AMMO", "#ff5555");
+        showMsg(playerPos.current, "OUT OF AMMO", "#ff5a4d");
       } else {
         startReload();
       }
@@ -984,7 +985,7 @@ export function GameScene() {
             let dmg = bullet.damage || 1;
             if (Math.random() < useGameStore.getState().stats.critChance) {
               dmg *= 2;
-              showMsg(npc.position, "CRIT!", "#ff8800");
+              showMsg(npc.position, "CRIT!", "#ff8a5e");
             }
 
             const prevHits = npcHitsMap[npcId] || 0;
@@ -1004,7 +1005,7 @@ export function GameScene() {
               lastKillTimeRef.current = time;
               useGameStore.getState().addKill();
               if (comboRef.current >= 2) {
-                showMsg(npc.position, `COMBO x${comboRef.current}`, "#ffdd00");
+                showMsg(npc.position, `COMBO x${comboRef.current}`, "#ff8a5e");
               }
 
               // Blood Contract: heal on kill
@@ -1089,7 +1090,7 @@ export function GameScene() {
         playHitSound();
         cameraShakeRef.current = 0.5;
         useGameStore.getState().bumpDamageFlash();
-        showMsg(playerPos.current, "-5 HP", "#ff0000");
+        showMsg(playerPos.current, "-5 HP", "#ff5a4d");
 
         const currentHealth = useGameStore.getState().health;
         const newHealth = currentHealth - 5;
@@ -1114,7 +1115,7 @@ export function GameScene() {
             if (mesh) mesh.visible = false;
 
             npc.hp -= 1;
-            showMsg(npc.position, "-1", "#ffaa00");
+            showMsg(npc.position, "-1", "#ff8a5e");
 
             if (npc.hp <= 0) {
               npc.dead = true;
@@ -1422,7 +1423,7 @@ export function GameScene() {
               playHitSound();
               cameraShakeRef.current = 1.0;
               useGameStore.getState().bumpDamageFlash();
-              showMsg(playerPos.current, "-20 HP", "#ff0000");
+              showMsg(playerPos.current, "-20 HP", "#ff5a4d");
 
               const currentHealth = useGameStore.getState().health;
               const newHealth = currentHealth - 20; // High melee damage
@@ -1492,11 +1493,11 @@ export function GameScene() {
 
       // Draw bounds
       minimapCtx.lineWidth = 1;
-      minimapCtx.strokeStyle = "rgba(255,255,255,0.2)";
+      minimapCtx.strokeStyle = "rgba(16,20,27,0.18)";
       minimapCtx.strokeRect(0, 0, cw, ch);
 
       // Draw buildings
-      minimapCtx.fillStyle = "rgba(255, 255, 255, 0.15)";
+      minimapCtx.fillStyle = "rgba(16, 20, 27, 0.16)";
       for (const b of BUILDINGS) {
         const bx = cx + b.x * scale;
         const by = cy + b.z * scale;
@@ -1517,13 +1518,13 @@ export function GameScene() {
       minimapCtx.beginPath();
       minimapCtx.moveTo(px, py);
       minimapCtx.lineTo(px + fwdX * 12 * scale, py + fwdZ * 12 * scale);
-      minimapCtx.strokeStyle = "rgba(0, 255, 100, 0.4)";
+      minimapCtx.strokeStyle = "rgba(61, 155, 255, 0.55)";
       minimapCtx.lineWidth = 2;
       minimapCtx.stroke();
 
       minimapCtx.beginPath();
       minimapCtx.arc(px, py, 3, 0, 2 * Math.PI);
-      minimapCtx.fillStyle = "#00ff88";
+      minimapCtx.fillStyle = "#3d9bff";
       minimapCtx.fill();
 
       // Draw NPCs
@@ -1537,7 +1538,7 @@ export function GameScene() {
         minimapCtx.beginPath();
         minimapCtx.arc(nx, ny, 2, 0, 2 * Math.PI);
         minimapCtx.fillStyle =
-          npc.converted || convertedMap[npc.id] ? "#ffffff" : "#ff3333";
+          npc.converted || convertedMap[npc.id] ? "#3d9bff" : "#ff5a4d";
         minimapCtx.fill();
       }
     }
@@ -1557,7 +1558,7 @@ export function GameScene() {
           >
             {/* Elegant elongated tracer lines pointing along Z-plane */}
             <boxGeometry args={[0.035, 0.035, 1.3]} />
-            <meshBasicMaterial color="#ffffff" />
+            <meshBasicMaterial color="#ff5a4d" />
           </mesh>
         ))}
       </group>
@@ -1571,7 +1572,7 @@ export function GameScene() {
             visible={false}
           >
             <boxGeometry args={[0.04, 0.04, 1.0]} />
-            <meshBasicMaterial color="#ff3333" />
+            <meshBasicMaterial color="#3d9bff" />
           </mesh>
         ))}
       </group>
@@ -1593,7 +1594,7 @@ export function GameScene() {
       {/* Player (The Suit equipped with Colt with focus rings) */}
       <group ref={playerRef}>
         <Humanoid
-          color="#000000"
+          color="#141a24"
           isMoving={playerMoving}
           isRunning={playerRunning}
           isShooting={isShooting}
@@ -1603,22 +1604,22 @@ export function GameScene() {
           isReloading={useGameStore.getState().isReloading}
         />
 
-        {/* Sleek tactical focus vector indicators under prime player's feet to make them extra prominent */}
+        {/* Electric-blue energy focus rings under the player's feet */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
           <ringGeometry args={[0.55, 0.62, 32]} />
           <meshBasicMaterial
-            color="#ffffff"
+            color="#3d9bff"
             transparent
-            opacity={0.45}
+            opacity={0.55}
             depthWrite={false}
           />
         </mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
           <ringGeometry args={[0.0, 0.12, 16]} />
           <meshBasicMaterial
-            color="#ffffff"
+            color="#86c4ff"
             transparent
-            opacity={0.5}
+            opacity={0.6}
             depthWrite={false}
           />
         </mesh>
@@ -1636,14 +1637,14 @@ export function GameScene() {
               {/* Stretched spike boxes */}
               <mesh>
                 <boxGeometry args={[0.05, 0.5, 0.05]} />
-                <meshBasicMaterial color="#ffaa33" />
+                <meshBasicMaterial color="#ff8a5e" />
               </mesh>
               <mesh rotation={[0, 0, Math.PI / 2]}>
                 <boxGeometry args={[0.05, 0.5, 0.05]} />
-                <meshBasicMaterial color="#ffaa33" />
+                <meshBasicMaterial color="#ff8a5e" />
               </mesh>
               {/* Transient high power spotlight overlay flare */}
-              <pointLight intensity={5} distance={6} color="#ff9c33" />
+              <pointLight intensity={5} distance={6} color="#ff7a5e" />
             </group>
 
             {/* Left gun blast */}
@@ -1654,13 +1655,13 @@ export function GameScene() {
               </mesh>
               <mesh>
                 <boxGeometry args={[0.05, 0.5, 0.05]} />
-                <meshBasicMaterial color="#ffaa33" />
+                <meshBasicMaterial color="#ff8a5e" />
               </mesh>
               <mesh rotation={[0, 0, Math.PI / 2]}>
                 <boxGeometry args={[0.05, 0.5, 0.05]} />
-                <meshBasicMaterial color="#ffaa33" />
+                <meshBasicMaterial color="#ff8a5e" />
               </mesh>
-              <pointLight intensity={5} distance={6} color="#ff9c33" />
+              <pointLight intensity={5} distance={6} color="#ff7a5e" />
             </group>
           </group>
         )}
@@ -1700,16 +1701,16 @@ export function GameScene() {
                 }}
               >
                 <boxGeometry args={[0.4, 0.4, 0.4]} />
-                <meshBasicMaterial color="#00ff44" />
+                <meshBasicMaterial color="#f4f6f9" />
               </mesh>
-              {/* simple cross for health */}
+              {/* coral medical cross for health */}
               <mesh ref={(el) => { if (el) { el.position.y = Math.sin(performance.now() * 0.003 * 2) * 0.1; } }} position={[0, 0, 0.21]}>
                 <boxGeometry args={[0.25, 0.08, 0.02]} />
-                <meshBasicMaterial color="#ffffff" />
+                <meshBasicMaterial color="#ff5a4d" />
               </mesh>
               <mesh ref={(el) => { if (el) { el.position.y = Math.sin(performance.now() * 0.003 * 2) * 0.1; } }} position={[0, 0, 0.21]}>
                 <boxGeometry args={[0.08, 0.25, 0.02]} />
-                <meshBasicMaterial color="#ffffff" />
+                <meshBasicMaterial color="#ff5a4d" />
               </mesh>
             </group>
           );
@@ -1717,7 +1718,7 @@ export function GameScene() {
 
         if (p.type === "weapon_tommy" || p.type === "weapon_shotgun") {
           const isTommy = p.type === "weapon_tommy";
-          const color = isTommy ? "#ffaa00" : "#ff5500";
+          const color = isTommy ? "#ff8a5e" : "#ff5a4d";
           return (
              <group
               key={p.id}
@@ -1783,7 +1784,7 @@ export function GameScene() {
               }}
             >
               <octahedronGeometry args={[0.3]} />
-              <meshBasicMaterial color="#00ffaa" wireframe={true} />
+              <meshBasicMaterial color="#3d9bff" wireframe={true} />
             </mesh>
             <mesh
               ref={(el) => {
@@ -1796,7 +1797,7 @@ export function GameScene() {
               }}
             >
               <octahedronGeometry args={[0.2]} />
-              <meshBasicMaterial color="#00dd88" />
+              <meshBasicMaterial color="#86c4ff" />
             </mesh>
           </group>
         );
@@ -1809,12 +1810,14 @@ export function GameScene() {
         const isFlashing = flashMap[npc.id];
         const isDead = deadMap[npc.id];
 
-        let suitColor = isConverted ? "#000000" : "#cccccc";
-        if (npc.type === "rusher") suitColor = isConverted ? "#000000" : "#772222";
-        if (npc.type === "boss") suitColor = isConverted ? "#000000" : "#991111";
+        // Citizens are pale clay; converted allies wear the dark navy suit;
+        // rushers/bosses carry a muted coral tint; coral flash on hit.
+        let suitColor = isConverted ? "#141a24" : "#d4dbe3";
+        if (npc.type === "rusher") suitColor = isConverted ? "#141a24" : "#e08a80";
+        if (npc.type === "boss") suitColor = isConverted ? "#141a24" : "#cf6a5e";
 
         if (isFlashing) {
-          suitColor = "#ff3333";
+          suitColor = "#ff5a4d";
         }
 
         // Aligning health segments perfectly
@@ -1850,15 +1853,15 @@ export function GameScene() {
                 <mesh>
                   <boxGeometry args={[0.5, 0.045, 0.02]} />
                   <meshBasicMaterial
-                    color="#222222"
+                    color="#5a6472"
                     transparent
                     opacity={0.7}
                   />
                 </mesh>
-                {/* Remaining Lives red chunk */}
+                {/* Remaining health coral chunk */}
                 <mesh position={[posX, 0, 0.012]}>
                   <boxGeometry args={[barWidth, 0.048, 0.025]} />
-                  <meshBasicMaterial color="#ff2222" />
+                  <meshBasicMaterial color="#ff5a4d" />
                 </mesh>
               </group>
             )}
@@ -1869,16 +1872,16 @@ export function GameScene() {
                 <mesh>
                   <boxGeometry args={[0.4, 0.045, 0.02]} />
                   <meshBasicMaterial
-                    color="#222222"
+                    color="#5a6472"
                     transparent
                     opacity={0.7}
                   />
                 </mesh>
-                {/* Green/White HP Fill */}
+                {/* Electric-blue ally HP fill */}
                 <mesh position={[allyPosX, 0, 0.012]}>
                   <boxGeometry args={[allyBarWidth, 0.048, 0.025]} />
                   <meshBasicMaterial
-                    color="#44ff44"
+                    color="#3d9bff"
                   />
                 </mesh>
               </group>

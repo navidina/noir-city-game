@@ -33,7 +33,8 @@ function seededRandom(seed: number) {
   };
 }
 
-const AWNING_COLORS = ['#7a2e2e', '#2e4a3d', '#2e3a55', '#6b5328'];
+// Sparse accent pops against the pale clay city: coral + electric blue + neutral
+const AWNING_COLORS = ['#ff5a4d', '#3d9bff', '#aab3c0', '#ff8a5e'];
 
 // Manhattan-style grid: city blocks at fixed cells, separated by streets.
 // Main avenues run along x=0 (north-south) and z=0 (east-west).

@@ -90,7 +90,7 @@ export function Humanoid({
     [color],
   );
   const skinMaterial = useMemo(
-    () => new MeshStandardMaterial({ color: "#eec2a8", roughness: 0.8 }),
+    () => new MeshStandardMaterial({ color: "#e7cabd", roughness: 0.85, metalness: 0 }),
     [],
   );
   const shoeMaterial = useMemo(
